@@ -1,0 +1,27 @@
+{
+    "name": "ThanhDV.BugCatcher",
+    "rootNamespace": "ThanhDV.BugCatcher",
+    "references": [
+        "Tayx.Graphy",
+        "IngameDebugConsole.Runtime",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BUGCATCHER_ENABLED"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "",
+            "define": "BUGCATCHER_INPUT_SYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,20 @@
+{
+    "name": "ThanhDV.BugCatcher.FMOD",
+    "rootNamespace": "ThanhDV.BugCatcher.Fmod",
+    "references": [
+        "ThanhDV.BugCatcher",
+        "FMODUnity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BUGCATCHER_FMOD",
+        "BUGCATCHER_ENABLED"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,30 @@
+{
+    "name": "thanhdv.bugcatcher",
+    "version": "0.1.0",
+    "displayName": "BugCatcher",
+    "description": "In-game debug overlay for Unity. Built on Graphy and In-game Debug Console.",
+    "unity": "2022.3",
+    "keywords": [
+        "BugCatcher",
+        "Debug",
+        "Console",
+        "HUD",
+        "FPS",
+        "Graphy",
+        "FMOD"
+    ],
+    "author": {
+        "name": "ThanhDV",
+        "email": "vanthanh1998@gmail.com",
+        "url": "https://knowledge.thanhdv.com/"
+    },
+    "dependencies": {
+        "com.tayx.graphy": "4.0.0",
+        "com.yasirkula.ingamedebugconsole": "1.9.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ThanhDV143/BugCatcher.git"
+    },
+    "license": "MIT"
+}

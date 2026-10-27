@@ -1,0 +1,2 @@
+/* BugCatcher runtime theme. Intentionally empty: no Unity default styles leak into the overlay.
+   All styling lives in BugCatcher.uss. */

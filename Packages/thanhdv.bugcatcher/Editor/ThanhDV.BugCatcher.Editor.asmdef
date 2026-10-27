@@ -1,0 +1,16 @@
+{
+    "name": "ThanhDV.BugCatcher.Editor",
+    "rootNamespace": "ThanhDV.BugCatcher.Editor",
+    "references": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
