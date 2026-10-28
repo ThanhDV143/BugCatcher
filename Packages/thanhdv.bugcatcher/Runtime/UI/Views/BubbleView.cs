@@ -9,6 +9,8 @@ namespace ThanhDV.BugCatcher.UI
     /// 56 × 56 bubble: FPS in status colour + error badge. While the HUD already shows FPS it shrinks to a
     /// 36 × 36 bug icon + badge. Tap opens the panel, long-press (400 ms) opens the quick menu, drag snaps
     /// to the nearest edge. It never rests on top of a HUD module.
+    /// Also lays out the recording bubble: beside it on the screen side, or alone at its place when this one is hidden.
+    /// Dragging either bubble moves both.
     /// </summary>
     internal class BubbleView
     {
@@ -16,6 +18,7 @@ namespace ThanhDV.BugCatcher.UI
         private const float CompactSize = 36f;
         private const float EdgeGap = 4f;
         private const float HudGap = 8f;
+        private const float PairGap = 8f;
         private const float DragThreshold = 6f;
         private const float IdleSeconds = 3f;
         private const float TextInterval = 0.25f;
@@ -32,12 +35,18 @@ namespace ThanhDV.BugCatcher.UI
         private float textTimer;
         private int lastErrors = -1;
 
+        private RecordingBubbleView recording;
         private bool pressed;
         private bool dragging;
         private bool longPressed;
         private Vector2 pressPosition;
-        private Vector2 pressOrigin;
         private IVisualElementScheduledItem longPressTimer;
+
+        // Group drag, shared with the recording bubble.
+        private VisualElement dragged;
+        private Vector2 dragOrigin;
+        private Vector2 otherOffset;
+        private bool otherShown;
 
         public BubbleView(BugCatcherUI ui)
         {
@@ -71,10 +80,25 @@ namespace ThanhDV.BugCatcher.UI
 
         private static BugCatcherSettings Settings => BugCatcher.Settings;
 
-        /// <summary>Re-reads position, size and visibility from the settings.</summary>
+        public void Pair(RecordingBubbleView recordingBubble)
+        {
+            recording = recordingBubble;
+            // Its width changes with the session timer; the pair must still avoid the HUD.
+            recording.Root.RegisterCallback<GeometryChangedEvent>(e =>
+            {
+                if (!Mathf.Approximately(e.oldRect.width, e.newRect.width)) Refresh();
+            });
+        }
+
+        private bool RecordingShown => recording != null && recording.Root.style.display != DisplayStyle.None;
+
+        /// <summary>Re-reads position, size and visibility (of both bubbles) from the settings.</summary>
         public void Refresh()
         {
-            Show(Root, Settings.showBubble && !ui.IsPanelOpen);
+            bool mainShown = Settings.showBubble && !ui.IsPanelOpen;
+            bool recordingShown = recording != null && recording.WantsToShow && !ui.IsPanelOpen;
+            Show(Root, mainShown);
+            recording?.SetShown(recordingShown);
             if (dragging) return;
 
             bool compact = HudShowsFps;
@@ -87,10 +111,32 @@ namespace ThanhDV.BugCatcher.UI
             }
 
             ShowBadge();
-            Root.style.left = Settings.bubbleOnRight ? StyleKeyword.Auto : EdgeGap;
-            Root.style.right = Settings.bubbleOnRight ? EdgeGap : StyleKeyword.Auto;
-            Root.style.top = AvoidHud(EdgeGap + Settings.bubbleY * (MaxTop - EdgeGap));
             Root.EnableInClassList("on-left", !Settings.bubbleOnRight);
+            if (mainShown || recordingShown) Place(mainShown, recordingShown);
+        }
+
+        /// <summary>Main bubble against the edge, recording bubble on its screen side, both centred on one row.</summary>
+        private void Place(bool mainShown, bool recordingShown)
+        {
+            bool right = Settings.bubbleOnRight;
+            float mainSize = mainShown ? Size : 0f;
+            float recordingWidth = recordingShown ? recording.Width : 0f;
+            float height = recordingShown ? Mathf.Max(mainSize, RecordingBubbleView.Height) : mainSize;
+            float width = mainSize + recordingWidth + (mainShown && recordingShown ? PairGap : 0f);
+            float top = AvoidHud(EdgeGap + Settings.bubbleY * (MaxTop(height) - EdgeGap), width, height);
+
+            SetEdge(Root, right, EdgeGap);
+            Root.style.top = top + (height - Size) * 0.5f;
+            if (recording == null) return;
+            SetEdge(recording.Root, right, EdgeGap + (mainShown ? mainSize + PairGap : 0f));
+            recording.Root.style.top = top + (height - RecordingBubbleView.Height) * 0.5f;
+            recording.SetSide(right);
+        }
+
+        private static void SetEdge(VisualElement element, bool right, float offset)
+        {
+            element.style.left = right ? StyleKeyword.Auto : offset;
+            element.style.right = right ? offset : StyleKeyword.Auto;
         }
 
         private static bool HudShowsFps => Settings.hudVisible && Settings.hud.modes[(int)HudModule.Fps] != HudMode.Off;
@@ -102,22 +148,21 @@ namespace ThanhDV.BugCatcher.UI
 
         private float Size => Root.ClassListContains("compact") ? CompactSize : FullSize;
 
-        /// <summary>Lowest resting top: the same <see cref="EdgeGap"/> from the bottom as from the sides (and the top).</summary>
-        private float MaxTop => Mathf.Max(EdgeGap, SafeHeight - Size - EdgeGap);
+        /// <summary>Lowest resting top for a row this tall: the same <see cref="EdgeGap"/> from the bottom as from the sides (and the top).</summary>
+        private float MaxTop(float height) => Mathf.Max(EdgeGap, SafeHeight - height - EdgeGap);
 
         /// <summary>
-        /// The top closest to <paramref name="desired"/> where the bubble, on its edge, overlaps no visible module.
+        /// The top closest to <paramref name="desired"/> where the bubbles' row, on its edge, overlaps no visible module.
         /// The saved position stays as the viewer left it; only the shown one moves.
         /// </summary>
-        private float AvoidHud(float desired)
+        private float AvoidHud(float desired, float width, float size)
         {
-            float size = Size;
-            float maxTop = MaxTop;
+            float maxTop = MaxTop(size);
             if (!Settings.hudVisible) return desired;
 
             Rect safe = ui.Safe.worldBound;
-            float left = Settings.bubbleOnRight ? SafeWidth - EdgeGap - size : EdgeGap;
-            float right = left + size;
+            float left = Settings.bubbleOnRight ? SafeWidth - EdgeGap - width : EdgeGap;
+            float right = left + width;
 
             // Tops that would overlap a module (plus the gap), as open intervals.
             blocked.Clear();
@@ -221,7 +266,6 @@ namespace ThanhDV.BugCatcher.UI
             dragging = false;
             longPressed = false;
             pressPosition = e.position;
-            pressOrigin = new Vector2(Root.layout.x, Root.layout.y);
             Root.CapturePointer(e.pointerId);
             longPressTimer = Root.schedule.Execute(() =>
             {
@@ -238,24 +282,11 @@ namespace ThanhDV.BugCatcher.UI
             Vector2 delta = (Vector2)e.position - pressPosition;
             if (!dragging && !longPressed && delta.magnitude > DragThreshold)
             {
-                dragging = true;
                 longPressTimer?.Pause();
-                Root.AddToClassList("dragging");
-                Show(edgeGlow, true);
+                BeginGroupDrag(Root);
             }
 
-            if (!dragging) return;
-
-            Vector2 position = pressOrigin + delta;
-            position.x = Mathf.Clamp(position.x, 0f, SafeWidth - Size);
-            position.y = Mathf.Clamp(position.y, 0f, SafeHeight - Size);
-            Root.style.left = position.x;
-            Root.style.right = StyleKeyword.Auto;
-            Root.style.top = position.y;
-
-            bool right = position.x + Size * 0.5f > SafeWidth * 0.5f;
-            edgeGlow.EnableInClassList("edge-right", right);
-            edgeGlow.EnableInClassList("edge-left", !right);
+            if (dragging) MoveGroup(delta);
         }
 
         private void OnPointerUp(PointerUpEvent e)
@@ -264,15 +295,8 @@ namespace ThanhDV.BugCatcher.UI
 
             bool wasDragging = dragging;
             bool wasLongPress = longPressed;
-            float x = Root.style.left.value.value;
-            float y = Root.style.top.value.value;
-            if (wasDragging)
-            {
-                // Stop dragging before Refresh() runs from the capture release.
-                dragging = false;
-                Settings.bubbleOnRight = x + Size * 0.5f > SafeWidth * 0.5f;
-                Settings.bubbleY = Mathf.Clamp01((y - EdgeGap) / Mathf.Max(1f, MaxTop - EdgeGap));
-            }
+            // Stop dragging before Refresh() runs from the capture release.
+            if (wasDragging) SaveGroupPosition();
             Root.ReleasePointer(e.pointerId);
             EndDrag();
 
@@ -293,8 +317,78 @@ namespace ThanhDV.BugCatcher.UI
             idleTimer = 0f;
             longPressTimer?.Pause();
             Root.RemoveFromClassList("dragging");
+            recording?.Root.RemoveFromClassList("dragging");
             Show(edgeGlow, false);
             Refresh();
+        }
+
+        // --- Group drag (either bubble) --------------------------------------------------------------
+
+        internal void BeginGroupDrag(VisualElement element)
+        {
+            dragging = true;
+            dragged = element;
+            dragOrigin = new Vector2(element.layout.x, element.layout.y);
+            VisualElement other = element == Root ? (RecordingShown ? recording.Root : null) : (Root.style.display != DisplayStyle.None ? Root : null);
+            otherShown = other != null;
+            if (otherShown) otherOffset = new Vector2(other.layout.x, other.layout.y) - dragOrigin;
+            element.AddToClassList("dragging");
+            Show(edgeGlow, true);
+        }
+
+        internal void MoveGroup(Vector2 delta)
+        {
+            if (!dragging) return;
+
+            VisualElement other = dragged == Root ? recording?.Root : Root;
+            Vector2 position = dragOrigin + delta;
+            Rect group = GroupRect(position, other);
+            // Keep the whole pair on screen.
+            position.x += Mathf.Clamp(group.xMin, 0f, Mathf.Max(0f, SafeWidth - group.width)) - group.xMin;
+            position.y += Mathf.Clamp(group.yMin, 0f, Mathf.Max(0f, SafeHeight - group.height)) - group.yMin;
+
+            Place(dragged, position);
+            if (otherShown) Place(other, position + otherOffset);
+
+            bool right = GroupRect(position, other).center.x > SafeWidth * 0.5f;
+            edgeGlow.EnableInClassList("edge-right", right);
+            edgeGlow.EnableInClassList("edge-left", !right);
+        }
+
+        /// <summary>The recording bubble ends a drag of the pair.</summary>
+        internal void FinishGroupDrag()
+        {
+            if (!dragging) return;
+            SaveGroupPosition();
+            EndDrag();
+            Settings.Changed();
+        }
+
+        private static void Place(VisualElement element, Vector2 position)
+        {
+            element.style.left = position.x;
+            element.style.right = StyleKeyword.Auto;
+            element.style.top = position.y;
+        }
+
+        private Rect GroupRect(Vector2 draggedPosition, VisualElement other)
+        {
+            var rect = new Rect(draggedPosition, dragged.layout.size);
+            if (!otherShown) return rect;
+            var otherRect = new Rect(draggedPosition + otherOffset, other.layout.size);
+            return Rect.MinMaxRect(Mathf.Min(rect.xMin, otherRect.xMin), Mathf.Min(rect.yMin, otherRect.yMin),
+                Mathf.Max(rect.xMax, otherRect.xMax), Mathf.Max(rect.yMax, otherRect.yMax));
+        }
+
+        /// <summary>Snap side from the pair's centre; height from its top, as <see cref="Place(bool, bool)"/> lays it out.</summary>
+        private void SaveGroupPosition()
+        {
+            VisualElement other = dragged == Root ? recording?.Root : Root;
+            var position = new Vector2(dragged.style.left.value.value, dragged.style.top.value.value);
+            Rect group = GroupRect(position, other);
+            Settings.bubbleOnRight = group.center.x > SafeWidth * 0.5f;
+            Settings.bubbleY = Mathf.Clamp01((group.yMin - EdgeGap) / Mathf.Max(1f, MaxTop(group.height) - EdgeGap));
+            dragging = false;
         }
     }
 }

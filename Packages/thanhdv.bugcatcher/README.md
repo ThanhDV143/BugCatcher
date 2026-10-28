@@ -9,6 +9,7 @@ An in-game debug overlay for Unity: performance HUD, log console, audio spectrum
 - **Audio**: live spectrum and levels from Unity Audio or FMOD.
 - **System**: device, OS, CPU, GPU, RAM and screen info, one tap to copy.
 - **Bubble**: floating button showing FPS and the error count.
+- **Auto screenshot**: keeps the last seconds of gameplay in memory and saves them when the game hitches or throws an error; record low-resolution clips from code.
 - Graphite and Paper themes, adjustable HUD scale and opacity, layout presets.
 - Works on desktop, phone portrait and phone landscape.
 
@@ -63,6 +64,33 @@ Open the panel:
 From code: `BugCatcher.Open()`, `BugCatcher.Close()`, `BugCatcher.Toggle()`.
 
 Configure the HUD (modules, corners, scale, theme) in the panel's **HUD** tab.
+
+## Screenshots
+
+**Screenshot** in the bubble's quick menu saves one full-resolution PNG without the overlay.
+
+**Auto screenshot** (Settings tab, off by default) captures low-resolution frames continuously and keeps the last 2 s in memory. When a signal arrives, it saves those 2 s and keeps saving until 2 s pass with no new signal:
+
+- **Drop FPS**: a frame at least 3× longer than the 5 s average and at least 50 ms.
+- **Error / Exception**: the first time each error appears in the play session.
+
+Pick the capture quality (resolution and frames per second) in Settings. Each incident is saved to its own folder under `Application.persistentDataPath/BugCatcher/Recordings`, with an `info.txt` describing what happened. There is no size limit; if the disk fills up, capturing stops.
+
+A recording bubble appears next to the bubble while anything is captured. Hold it for about a second to stop (auto screenshot stays off until the next launch).
+
+From code:
+
+```csharp
+BugCatcher.Recorder.Start("Boss fight", CaptureMode.P240_16); // record every frame to disk
+string folder = BugCatcher.Recorder.Stop();
+
+string saved = BugCatcher.Recorder.SaveRecent("Quest bug");    // save the last 2 s (auto screenshot must be on)
+
+BugCatcher.Recorder.Suppress("Loading");                       // ignore hitches during heavy loading
+BugCatcher.Recorder.Resume();
+```
+
+While `Start` is recording, auto screenshot pauses.
 
 ## FMOD
 

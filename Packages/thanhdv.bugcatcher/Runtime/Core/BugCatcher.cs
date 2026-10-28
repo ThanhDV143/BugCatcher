@@ -18,6 +18,8 @@ namespace ThanhDV.BugCatcher
         public static CommandService Commands { get; private set; }
         public static PerformanceService Performance { get; private set; }
         public static AudioService Audio { get; private set; }
+        /// <summary>Continuous low-resolution screenshots: auto screenshot and Start/Stop recordings.</summary>
+        public static ScreenRecorder Recorder { get; private set; }
 
         public static bool IsOpen => host != null && host.Ui.IsPanelOpen;
 
@@ -85,6 +87,7 @@ namespace ThanhDV.BugCatcher
             Commands = null;
             Performance = null;
             Audio = null;
+            Recorder = null;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -102,8 +105,11 @@ namespace ThanhDV.BugCatcher
             Audio = new AudioService(Settings);
             foreach (IAudioProvider provider in pendingProviders) Audio.Register(provider);
             pendingProviders.Clear();
+            // Before the host: the UI it builds reads the recorder state.
+            Recorder = new ScreenRecorder(Settings, Logs);
 
             host = go.AddComponent<BugCatcherHost>();
+            Recorder.Attach(host);
         }
 
         internal static void OnHostDestroyed(BugCatcherHost destroyed)
@@ -131,6 +137,7 @@ namespace ThanhDV.BugCatcher
             BugCatcher.Logs.Drain();
             BugCatcher.Performance.Tick(dt);
             BugCatcher.Audio.Tick(dt);
+            BugCatcher.Recorder?.Tick(dt);
 
             triggers.GestureEnabled = !Ui.IsPanelOpen;
             if (triggers.TickGesture()) Ui.OpenPanelAfterGesture();
@@ -139,9 +146,12 @@ namespace ThanhDV.BugCatcher
             Ui.Tick(dt);
         }
 
+        private void OnApplicationPause(bool pauseStatus) => BugCatcher.Recorder?.SetPaused(pauseStatus);
+
         private void OnDestroy()
         {
             BugCatcher.Logs?.Detach();
+            BugCatcher.Recorder?.Dispose();
             BugCatcher.OnHostDestroyed(this);
         }
 

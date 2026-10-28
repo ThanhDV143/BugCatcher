@@ -78,6 +78,9 @@ namespace ThanhDV.BugCatcher
         /// <summary>Raised once per frame that received at least one Error/Exception/Assert.</summary>
         public event Action OnNewError;
 
+        /// <summary>Raised for each message seen for the first time (since the last <see cref="Clear"/>).</summary>
+        public event Action<LogEntry> OnNewEntry;
+
         public void Attach()
         {
             Application.logMessageReceivedThreaded -= Receive;
@@ -117,6 +120,7 @@ namespace ThanhDV.BugCatcher
                     };
                     byKey.Add(key, entry);
                     entries.Add(entry);
+                    OnNewEntry?.Invoke(entry);
                 }
 
                 entry.Count++;

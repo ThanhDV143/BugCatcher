@@ -80,6 +80,10 @@ namespace ThanhDV.BugCatcher
         public bool showWarning = true;
         public bool showError = true;
         public bool sheetHalf;
+        public bool autoScreenshot;
+        public bool autoHitch = true;
+        public bool autoErrors = true;
+        public CaptureMode autoMode = CaptureModes.Default;
 
         /// <summary>Raised after any change made through <see cref="Changed"/>.</summary>
         public event Action OnChanged;

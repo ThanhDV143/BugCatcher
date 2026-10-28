@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 using static ThanhDV.BugCatcher.UI.UIB;
 
 namespace ThanhDV.BugCatcher.UI
 {
-    /// <summary>Bubble visibility, the three ways to open, text size, and HUD layout presets.</summary>
+    /// <summary>Bubble visibility, the three ways to open, text size, auto screenshot, and HUD layout presets.</summary>
     internal class SettingsTab : IPanelTab
     {
         private VisualElement root;
@@ -14,6 +15,15 @@ namespace ThanhDV.BugCatcher.UI
         private VisualElement nameRow;
         private TextField nameField;
         private LayoutMode mode;
+        private Switch autoSwitch;
+        private Switch hitchSwitch;
+        private Switch errorSwitch;
+        private VisualElement autoOptions;
+        private Segmented resolution;
+        private VisualElement fpsHolder;
+        private Segmented fps;
+        private int fpsHeight;
+        private bool autoShown;
 
         private static BugCatcherSettings Settings => BugCatcher.Settings;
 
@@ -52,6 +62,8 @@ namespace ThanhDV.BugCatcher.UI
             textSize.Option(2).AddToClassList("fs-large");
             content.Add(Div("group", Text("TEXT SIZE", "lbl"), textSize));
 
+            content.Add(Div("group", Text("AUTO SCREENSHOT", "lbl"), BuildAutoScreenshot()));
+
             presetList = Div("card");
             nameField = new TextField();
             nameField.AddToClassList("bare-field");
@@ -77,6 +89,75 @@ namespace ThanhDV.BugCatcher.UI
             return root;
         }
 
+        private VisualElement BuildAutoScreenshot()
+        {
+            ScreenRecorder recorder = BugCatcher.Recorder;
+            autoShown = recorder.AutoEnabled;
+            autoSwitch = new Switch(autoShown, on => recorder.SetAutoEnabled(on));
+            hitchSwitch = new Switch(Settings.autoHitch, on =>
+            {
+                Settings.autoHitch = on;
+                Settings.Changed();
+            });
+            errorSwitch = new Switch(Settings.autoErrors, on =>
+            {
+                Settings.autoErrors = on;
+                Settings.Changed();
+            });
+
+            var labels = new string[CaptureModes.Resolutions.Length];
+            for (int i = 0; i < labels.Length; i++) labels[i] = CaptureModes.Resolutions[i] + "p";
+            resolution = new Segmented(labels, ResolutionIndex(Settings.autoMode), SelectResolution);
+            fpsHolder = Div("auto-fps");
+
+            autoOptions = Div("auto-options",
+                SettingRow("Drop FPS", "A frame 3× longer than the average (and ≥ 50 ms)", hitchSwitch),
+                SettingRow("Error / Exception", "The first time each error appears", errorSwitch),
+                Div("auto-mode", Text("Resolution", "fs-caption c-secondary"), resolution, Text("Captures per second", "fs-caption c-secondary"), fpsHolder),
+                Div("auto-path", Text("Saved in", "fs-caption c-secondary"), Text(recorder.Folder, "mono fs-caption c-muted")));
+            Show(autoOptions, autoShown);
+            BuildFps();
+
+            return Div("card",
+                SettingRow("Auto screenshot", "Keeps the last 2 s in memory and saves them when something goes wrong", autoSwitch, "first"),
+                autoOptions);
+        }
+
+        private static VisualElement SettingRow(string title, string caption, VisualElement control, string extra = null) =>
+            Div("setting-row " + extra, Div("col grow", Text(title, "fs-body w500"), Text(caption, "fs-caption c-secondary")), control);
+
+        private static int ResolutionIndex(CaptureMode captureMode) => System.Array.IndexOf(CaptureModes.Resolutions, CaptureModes.Height(captureMode));
+
+        /// <summary>Changing resolution keeps the same position (high/mid/low rate) where it exists.</summary>
+        private void SelectResolution(int index)
+        {
+            List<CaptureMode> current = CaptureModes.ForResolution(CaptureModes.Height(Settings.autoMode));
+            List<CaptureMode> next = CaptureModes.ForResolution(CaptureModes.Resolutions[index]);
+            int position = Mathf.Max(0, current.IndexOf(Settings.autoMode));
+            Settings.autoMode = next[Mathf.Min(position, next.Count - 1)];
+            Settings.Changed();
+        }
+
+        private void BuildFps()
+        {
+            int height = CaptureModes.Height(Settings.autoMode);
+            List<CaptureMode> modes = CaptureModes.ForResolution(height);
+            if (fps == null || height != fpsHeight)
+            {
+                fpsHeight = height;
+                var labels = new string[modes.Count];
+                for (int i = 0; i < labels.Length; i++) labels[i] = CaptureModes.Fps(modes[i]) + " fps";
+                fpsHolder.Clear();
+                fps = new Segmented(labels, 0, i =>
+                {
+                    Settings.autoMode = CaptureModes.ForResolution(fpsHeight)[i];
+                    Settings.Changed();
+                });
+                fpsHolder.Add(fps);
+            }
+            fps.SetSelected(modes.IndexOf(Settings.autoMode));
+        }
+
         private static VisualElement Way(VisualElement icon, string title, string caption, bool highlight, bool last = false) =>
             Div("way" + (highlight ? " way-on" : "") + (last ? " last" : ""), icon, Div("col", Text(title, "fs-body w500"), Text(caption, "fs-caption c-secondary")));
 
@@ -88,7 +169,14 @@ namespace ThanhDV.BugCatcher.UI
             if (!visible && nameRow != null) Show(nameRow, false);
         }
 
-        public void Tick(float deltaTime) { }
+        // Holding the recording bubble stops auto screenshot without saving; mirror that here.
+        public void Tick(float deltaTime)
+        {
+            if (autoSwitch == null || BugCatcher.Recorder.AutoEnabled == autoShown) return;
+            autoShown = BugCatcher.Recorder.AutoEnabled;
+            autoSwitch.SetValue(autoShown);
+            Show(autoOptions, autoShown);
+        }
 
         public void ApplySettings()
         {
@@ -96,6 +184,13 @@ namespace ThanhDV.BugCatcher.UI
 
             bubbleSwitch.SetValue(Settings.showBubble);
             textSize.SetSelected((int)Settings.textSize);
+            autoShown = BugCatcher.Recorder.AutoEnabled;
+            autoSwitch.SetValue(autoShown);
+            Show(autoOptions, autoShown);
+            hitchSwitch.SetValue(Settings.autoHitch);
+            errorSwitch.SetValue(Settings.autoErrors);
+            resolution.SetSelected(ResolutionIndex(Settings.autoMode));
+            BuildFps();
             BuildPresets();
         }
 

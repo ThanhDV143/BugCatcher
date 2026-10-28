@@ -48,6 +48,7 @@ namespace ThanhDV.BugCatcher.UI
         private readonly OpenTriggers triggers;
         private readonly HudView hud;
         private readonly BubbleView bubble;
+        private readonly RecordingBubbleView recording;
         private readonly GestureOverlay gestures;
         private readonly PanelView panel;
         private readonly QuickMenu quickMenu;
@@ -89,6 +90,10 @@ namespace ThanhDV.BugCatcher.UI
             Safe.Add(hud.Root);
             bubble = new BubbleView(this);
             Safe.Add(bubble.Root);
+            recording = new RecordingBubbleView(this);
+            Safe.Add(recording.Root);
+            bubble.Pair(recording);
+            recording.Pair(bubble);
             gestures = new GestureOverlay(this);
             Root.Add(gestures.Root);
             panel = new PanelView(this);
@@ -103,6 +108,11 @@ namespace ThanhDV.BugCatcher.UI
             Settings.OnChanged += ApplySettings;
             Themes.OnRegistered += ApplySettings;
             BugCatcher.Logs.OnNewError += bubble.PulseError;
+            BugCatcher.Recorder.StateChanged += () =>
+            {
+                recording.ApplyState();
+                bubble.Refresh();
+            };
             UpdateScreen(true);
             ApplySettings();
         }
@@ -215,6 +225,7 @@ namespace ThanhDV.BugCatcher.UI
             UpdateScreen(false);
             hud.Tick(deltaTime);
             bubble.Tick(deltaTime);
+            recording.Tick(deltaTime);
             gestures.Tick(triggers);
             panel.Tick(deltaTime);
         }

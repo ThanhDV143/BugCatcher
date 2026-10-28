@@ -452,6 +452,50 @@
 .bubble.pulse { border-color: var(--status-critical); border-width: 2px; }
 .bubble.pulse .badge { scale: 1.15 1.15; }
 
+/* Recording bubble: beside the main bubble while screenshots are captured */
+.rec-bubble {
+    position: absolute;
+    height: 36px;
+    min-width: 36px;
+    padding: 0 9px;
+    border-radius: 8px;
+    background-color: var(--bg-overlay);
+    border-width: 1px;
+    border-color: var(--border);
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    transition-property: scale, border-color;
+    transition-duration: 0.2s;
+}
+.rec-bubble.state-error { border-color: var(--status-caution); }
+.rec-bubble.dragging { scale: 1.1 1.1; border-color: var(--accent); border-width: 1.5px; }
+.rec-dot { width: 10px; height: 10px; border-radius: 5px; background-color: var(--status-critical); flex-shrink: 0; }
+.rec-bubble.blink-off .rec-dot { opacity: 0.2; }
+.rec-time { margin-left: 6px; color: var(--text-primary); }
+/* Hold-to-stop progress: traces the bubble's outline, 4 px outside it (radius 8 + 4) */
+.rec-outline {
+    position: absolute;
+    left: -4px;
+    top: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 12px;
+    color: var(--accent);
+    border-top-color: var(--track);
+}
+.rec-hint {
+    position: absolute;
+    top: 7px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+.rec-bubble.on-left .rec-hint { left: 100%; margin-left: 8px; }
+.rec-bubble.on-right .rec-hint { right: 100%; margin-right: 8px; }
+
 .edge-glow {
     position: absolute;
     top: 0;
@@ -1013,6 +1057,21 @@
 /* ---------- Settings tab ---------- */
 
 .switch-card { flex-direction: row; align-items: center; padding: 0 12px; min-height: 52px; }
+.setting-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 10px 12px;
+    min-height: 52px;
+    border-top-width: 1px;
+    border-top-color: var(--divider);
+}
+.setting-row.first { border-top-width: 0; }
+.setting-row > .col { margin-right: 12px; }
+.auto-options { flex-direction: column; }
+.auto-mode { padding: 10px 12px 12px 12px; border-top-width: 1px; border-top-color: var(--divider); }
+.auto-mode > Label { margin-bottom: 6px; }
+.auto-mode > .seg { margin-bottom: 10px; }
+.auto-path { padding: 8px 12px 10px 12px; border-top-width: 1px; border-top-color: var(--divider); }
 .way {
     flex-direction: row;
     align-items: center;

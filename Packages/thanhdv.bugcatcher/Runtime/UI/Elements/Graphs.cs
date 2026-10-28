@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -165,6 +166,94 @@ namespace ThanhDV.BugCatcher.UI
                 painter.LineTo(new Vector2(i * width + barWidth, y));
             }
             painter.Stroke();
+        }
+    }
+
+    /// <summary>
+    /// Progress drawn along a rounded rectangle, clockwise from the top centre, so it follows the outline of the
+    /// element it surrounds (square or pill). Track = border-top-color, progress = color, corner radius = border-radius.
+    /// </summary>
+    internal class OutlineProgress : PaintedElement
+    {
+        private const float Stroke = 3f;
+        private const int ArcSegments = 8;
+
+        private readonly List<Vector2> points = new List<Vector2>();
+        private float progress;
+
+        public float Progress
+        {
+            get => progress;
+            set
+            {
+                progress = Mathf.Clamp01(value);
+                MarkDirtyRepaint();
+            }
+        }
+
+        protected override void Draw(MeshGenerationContext context)
+        {
+            Rect rect = contentRect;
+            float half = Stroke * 0.5f;
+            rect = Rect.MinMaxRect(rect.xMin + half, rect.yMin + half, rect.xMax - half, rect.yMax - half);
+            if (rect.width <= 0f || rect.height <= 0f) return;
+
+            float radius = Mathf.Min(resolvedStyle.borderTopLeftRadius - half, rect.width * 0.5f, rect.height * 0.5f);
+            BuildOutline(rect, Mathf.Max(0f, radius));
+
+            Painter2D painter = context.painter2D;
+            painter.lineWidth = Stroke;
+            painter.lineCap = LineCap.Round;
+            painter.lineJoin = LineJoin.Round;
+
+            painter.strokeColor = GridColor;
+            painter.BeginPath();
+            painter.MoveTo(points[0]);
+            for (int i = 1; i < points.Count; i++) painter.LineTo(points[i]);
+            painter.Stroke();
+
+            if (progress <= 0f) return;
+
+            float total = 0f;
+            for (int i = 1; i < points.Count; i++) total += Vector2.Distance(points[i - 1], points[i]);
+            float remaining = total * progress;
+
+            painter.strokeColor = MainColor;
+            painter.BeginPath();
+            painter.MoveTo(points[0]);
+            for (int i = 1; i < points.Count && remaining > 0f; i++)
+            {
+                float length = Vector2.Distance(points[i - 1], points[i]);
+                if (length >= remaining)
+                {
+                    painter.LineTo(Vector2.Lerp(points[i - 1], points[i], remaining / length));
+                    break;
+                }
+                painter.LineTo(points[i]);
+                remaining -= length;
+            }
+            painter.Stroke();
+        }
+
+        // Clockwise from the top centre: top edge, corners as short arcs, back to the start.
+        private void BuildOutline(Rect r, float radius)
+        {
+            points.Clear();
+            points.Add(new Vector2(r.center.x, r.yMin));
+            AddCorner(new Vector2(r.xMax - radius, r.yMin + radius), radius, -90f);
+            AddCorner(new Vector2(r.xMax - radius, r.yMax - radius), radius, 0f);
+            AddCorner(new Vector2(r.xMin + radius, r.yMax - radius), radius, 90f);
+            AddCorner(new Vector2(r.xMin + radius, r.yMin + radius), radius, 180f);
+            points.Add(new Vector2(r.center.x, r.yMin));
+        }
+
+        private void AddCorner(Vector2 centre, float radius, float startDegrees)
+        {
+            for (int i = 0; i <= ArcSegments; i++)
+            {
+                float angle = (startDegrees + 90f * i / ArcSegments) * Mathf.Deg2Rad;
+                points.Add(centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius);
+            }
         }
     }
 
