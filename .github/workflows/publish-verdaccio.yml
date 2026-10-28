@@ -1,0 +1,102 @@
+name: Publish UPM Package
+run-name: 📦 ${{ github.event.repository.name }}@${{ github.ref_name }} → Verdaccio
+
+# Triggered when a Git Tag matching v* is pushed
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-package:
+    runs-on: ubuntu-latest
+
+    # ====================================================================
+    # 🔧 PER-PROJECT CONFIG — change this ONE line when copying to a new project
+    # ====================================================================
+    defaults:
+      run:
+        working-directory: Packages/thanhdv.bugcatcher
+
+    # ====================================================================
+    # 🌐 SHARED CONFIG — same across all your projects, rarely changes
+    # ====================================================================
+    env:
+      REGISTRY_URL: https://upm.thanhdv.com
+      NODE_VERSION: '22.x'
+
+    steps:
+      # Step 1: Checkout the source code at the pushed tag
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js and point to your Verdaccio registry
+      - name: Setup NodeJS & Registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: ${{ env.REGISTRY_URL }}
+
+      # Step 3: Extract package info from package.json for Discord notification.
+      # - name:        technical id (e.g. "com.tayx.graphy") — used in URL & registry
+      # - version:     semver string
+      # - displayName: human-friendly name (e.g. "Graphy") — used in Discord title.
+      #                Falls back to `name` if displayName is not set in package.json.
+      - name: Extract Package Info
+        id: pkg-info
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "display_name=$(node -p "require('./package.json').displayName || require('./package.json').name")" >> $GITHUB_OUTPUT
+
+      # Step 4: Pack and publish to Verdaccio using the secure token.
+      - name: Publish to Verdaccio
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.VERDACCIO_TOKEN }}
+
+      # Step 5: Send a Discord notification based on job result
+
+      # 1. Notify on SUCCESS
+      - name: Discord Notification (Success)
+        if: success()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          username: "GitHub Actions CI/CD"
+          status: success
+          nodetail: true # Removes extra detail lines (author, branch, commit) from the notification
+          title: "✅ Success: ${{ steps.pkg-info.outputs.display_name }} v${{ steps.pkg-info.outputs.version }}"
+          description: |
+            Build **#${{ github.run_number }}** published package `${{ steps.pkg-info.outputs.name }}@${{ steps.pkg-info.outputs.version }}` successfully.
+            **Build Log:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Package URL:** ${{ env.REGISTRY_URL }}/-/web/detail/${{ steps.pkg-info.outputs.name }}
+
+      # 2. Notify on FAILURE
+      - name: Discord Notification (Failure)
+        if: failure()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          username: "GitHub Actions CI/CD"
+          status: failure
+          nodetail: true
+          title: "❌ Failure: ${{ steps.pkg-info.outputs.display_name || github.event.repository.name }} ${{ github.ref_name }}"
+          description: |
+            Build **#${{ github.run_number }}** failed for package `${{ steps.pkg-info.outputs.name || github.event.repository.name }}` at tag `${{ github.ref_name }}`.
+            **Reason:** Publish step failed.
+            **Build Log:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      # 3. Notify on CANCELLED
+      - name: Discord Notification (Cancelled)
+        if: cancelled()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          username: "GitHub Actions CI/CD"
+          status: cancelled
+          nodetail: true
+          title: "ℹ️ Cancelled: ${{ steps.pkg-info.outputs.display_name || github.event.repository.name }} ${{ github.ref_name }}"
+          description: |
+            Build **#${{ github.run_number }}** for job `${{ github.workflow }}` at tag `${{ github.ref_name }}` was aborted manually.
+            **Build Log:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
