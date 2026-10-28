@@ -16,8 +16,9 @@ namespace ThanhDV.BugCatcher.UI
     {
         private const float FullSize = 56f;
         private const float CompactSize = 36f;
-        private const float EdgeGap = 4f;
-        private const float HudGap = 8f;
+        // Same spacing as the HUD modules: .hud-corner inset (8px) and the gap between stacked modules (6px).
+        private const float EdgeGap = 8f;
+        private const float HudGap = 6f;
         private const float PairGap = 8f;
         private const float DragThreshold = 6f;
         private const float IdleSeconds = 3f;

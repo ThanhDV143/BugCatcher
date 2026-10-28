@@ -18,8 +18,8 @@ namespace ThanhDV.BugCatcher
     {
         public const int ModuleCount = 5;
 
-        public HudMode[] modes = { HudMode.Full, HudMode.Text, HudMode.Basic, HudMode.Off, HudMode.Off };
-        public HudCorner[] corners = { HudCorner.TopLeft, HudCorner.TopLeft, HudCorner.TopRight, HudCorner.TopRight, HudCorner.BottomLeft };
+        public HudMode[] modes = { HudMode.Basic, HudMode.Basic, HudMode.Basic, HudMode.Basic, HudMode.Full };
+        public HudCorner[] corners = { HudCorner.TopLeft, HudCorner.TopLeft, HudCorner.TopLeft, HudCorner.TopLeft, HudCorner.BottomLeft };
         public float scale = 1f;
         public float opacity = 0.78f;
 
@@ -65,9 +65,9 @@ namespace ThanhDV.BugCatcher
 
         public string theme = "graphite";
         public bool showBubble = true;
-        public bool hudVisible = true;
+        public bool hudVisible = false;
         public bool bubbleOnRight = true;
-        public float bubbleY = 0.42f;
+        public float bubbleY = 0f;
         public HudLayout hud = new HudLayout();
         public TextSize textSize = TextSize.Default;
         public List<LayoutPreset> presets = new List<LayoutPreset>();
