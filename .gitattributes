@@ -169,3 +169,6 @@ Packages/packages-lock.json linguist-generated
 
 # Exceptions for .asset files such as lightning pre-baking
 LightingData.asset     binary
+
+# UPM git installs do not fetch LFS objects: keep the package's fonts in plain git
+Packages/thanhdv.bugcatcher/**/*.ttf    -filter -diff -merge -text

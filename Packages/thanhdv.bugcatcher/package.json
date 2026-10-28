@@ -1,6 +1,6 @@
 {
     "name": "thanhdv.bugcatcher",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "displayName": "BugCatcher",
     "description": "In-game debug overlay for Unity. Built on Graphy and In-game Debug Console.",
     "unity": "2022.3",
