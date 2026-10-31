@@ -58,9 +58,9 @@ namespace ThanhDV.BugCatcher
         public string DisplayName => "Unity Audio";
         public string ShortName => "UNITY";
         public string SpectrumCaption => "master · FFT " + FftSize;
-        public bool IsAvailable => AudioSettings.outputSampleRate > 0;
+        public bool IsAvailable => AudioSettings.GetConfiguration().sampleRate > 0;
         public float[] Spectrum => spectrum;
-        public float SampleRate => AudioSettings.outputSampleRate;
+        public float SampleRate => AudioSettings.GetConfiguration().sampleRate;
         public float RmsDb { get; private set; } = float.NegativeInfinity;
         public float PeakDb { get; private set; } = float.NegativeInfinity;
         public AudioExtras Extras => null;
