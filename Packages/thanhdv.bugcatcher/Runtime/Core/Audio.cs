@@ -58,7 +58,7 @@ namespace ThanhDV.BugCatcher
         public string DisplayName => "Unity Audio";
         public string ShortName => "UNITY";
         public string SpectrumCaption => "master · FFT " + FftSize;
-        public bool IsAvailable => true;
+        public bool IsAvailable => AudioSettings.outputSampleRate > 0;
         public float[] Spectrum => spectrum;
         public float SampleRate => AudioSettings.outputSampleRate;
         public float RmsDb { get; private set; } = float.NegativeInfinity;
@@ -157,6 +157,8 @@ namespace ThanhDV.BugCatcher
         public void Tick(float deltaTime)
         {
             IAudioProvider current = viewers.Count > 0 ? Current : null;
+            // Current falls back to an unavailable provider when none is available; never read from it.
+            if (current != null && !current.IsAvailable) current = null;
             if (current != active || (current != null) != running)
             {
                 active?.SetActive(false);

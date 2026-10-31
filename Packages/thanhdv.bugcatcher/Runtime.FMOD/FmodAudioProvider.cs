@@ -88,8 +88,18 @@ namespace ThanhDV.BugCatcher.Fmod
                 if (!attached) return;
             }
 
-            ReadSpectrum();
-            ReadMaster();
+            // With nothing audible reaching master (buses at volume 0, muted or paused) FMOD idles the FFT DSP,
+            // which then keeps returning its last spectrum and no meter channels; show silence instead.
+            if (fft.getIdle(out bool idle) == FMOD.RESULT.OK && idle)
+            {
+                Array.Clear(spectrum, 0, spectrum.Length);
+                RmsDb = PeakDb = float.NegativeInfinity;
+            }
+            else
+            {
+                ReadSpectrum();
+                ReadMaster();
+            }
 
             extrasTimer += Time.unscaledDeltaTime;
             if (extrasTimer < ExtrasInterval) return;
