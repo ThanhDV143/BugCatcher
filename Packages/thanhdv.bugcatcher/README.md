@@ -48,7 +48,7 @@ Use *Tools → ThanhDV → Bug Catcher → Enable Bug Catcher*.
 
 BugCatcher is only included while the `BUGCATCHER_ENABLED` scripting symbol is set, in the Editor and in every build.
 
-> **Untick *Enable Bug Catcher* before making a release build**, or it will ship with your game.
+> **Run *Tools → ThanhDV → Bug Catcher → Disable All for Release* before building a release.** It removes `BUGCATCHER_ENABLED` and `BUGCATCHER_FMOD` from all build targets, including Dedicated Server, and preserves other scripting symbols.
 
 ## Usage
 

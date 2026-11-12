@@ -22,6 +22,7 @@ namespace ThanhDV.BugCatcher.Editor
         private const string Root = "Tools/ThanhDV/Bug Catcher/";
         private const string EnabledItem = Root + "Enable Bug Catcher";
         private const string FmodItem = Root + "Use FMOD";
+        private const string DisableForReleaseItem = Root + "Disable All for Release";
 
         private const string EnabledSymbol = "BUGCATCHER_ENABLED";
         private const string FmodSymbol = "BUGCATCHER_FMOD";
@@ -67,6 +68,17 @@ namespace ThanhDV.BugCatcher.Editor
         {
             Menu.SetChecked(FmodItem, HasSymbol(FmodSymbol));
             return true;
+        }
+
+        [MenuItem(DisableForReleaseItem, priority = 20)]
+        private static void DisableForRelease()
+        {
+            foreach (NamedBuildTarget target in AllTargets())
+            {
+                List<string> symbols = ReadSymbols(target);
+                if (symbols.RemoveAll(s => s == EnabledSymbol || s == FmodSymbol) > 0)
+                    PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            }
         }
 
         private static bool IsEnabled => HasSymbol(EnabledSymbol);
