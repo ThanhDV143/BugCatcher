@@ -9,12 +9,14 @@ namespace ThanhDV.BugCatcher.UI
     internal class HudView
     {
         private const float TextInterval = 0.25f;
+        private const float FrameGraphInterval = 1f / 15f;
         private const float CornerMargin = 8f;
 
         private readonly BugCatcherUI ui;
         private readonly VisualElement[] corners = new VisualElement[4];
         private readonly HudModuleView[] modules = new HudModuleView[HudLayout.ModuleCount];
         private float textTimer;
+        private float frameGraphTimer;
         private int historyVersion = -1;
 
         public HudView(BugCatcherUI ui)
@@ -92,6 +94,14 @@ namespace ThanhDV.BugCatcher.UI
                 foreach (HudModuleView module in modules) module.UpdateText();
             }
 
+            // Frame times arrive every frame; redrawing at 15 Hz keeps the cost low.
+            frameGraphTimer += deltaTime;
+            if (frameGraphTimer >= FrameGraphInterval)
+            {
+                frameGraphTimer = 0f;
+                modules[(int)HudModule.Fps].RepaintFrameGraph();
+            }
+
             int version = BugCatcher.Performance.HistoryVersion;
             if (version != historyVersion)
             {
@@ -113,7 +123,7 @@ namespace ThanhDV.BugCatcher.UI
         private bool builtForDesktop;
 
         private Label fpsValue, avgValue, oneValue, pointOneValue;
-        private LineGraph fpsGraph;
+        private FrameTimeGraph frameGraph;
         private Label allocValue, reservedValue, monoValue, ramBasicValue, ramBasicTotal;
         private LineGraph[] ramGraphs;
         private Label audioHeader, rmsValue, peakValue;
@@ -144,7 +154,7 @@ namespace ThanhDV.BugCatcher.UI
             Root.Clear();
             Root.ClearClassList();
             Root.AddToClassList("mod");
-            fpsGraph = null;
+            frameGraph = null;
             ramGraphs = null;
             spectrum = null;
             logLines = null;
@@ -194,11 +204,10 @@ namespace ThanhDV.BugCatcher.UI
 
             if (mode != HudMode.Full) return;
 
-            fpsGraph = new LineGraph(new[] { 0.2f, 0.6f });
-            fpsGraph.AddToClassList("mod-graph");
-            fpsGraph.AddToClassList("graph-fps");
-            fpsGraph.Bind(Perf.FpsHistory, () => Mathf.Max(75f, Perf.FpsHistory.Max() * 1.15f));
-            Root.Add(fpsGraph);
+            frameGraph = new FrameTimeGraph();
+            frameGraph.AddToClassList("mod-graph");
+            frameGraph.Bind(Perf.FrameTimeHistory);
+            Root.Add(frameGraph);
         }
 
         private void BuildRam()
@@ -436,9 +445,10 @@ namespace ThanhDV.BugCatcher.UI
             meter?.Set(AudioService.Normalize(audio.Current.RmsDb), AudioService.Normalize(audio.HeldPeakDb), spectrum != null);
         }
 
+        public void RepaintFrameGraph() => frameGraph?.RepaintIfChanged();
+
         public void RepaintGraphs()
         {
-            fpsGraph?.MarkDirtyRepaint();
             if (ramGraphs == null) return;
             foreach (LineGraph graph in ramGraphs) graph.MarkDirtyRepaint();
         }

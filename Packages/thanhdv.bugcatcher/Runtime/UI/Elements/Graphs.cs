@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 namespace ThanhDV.BugCatcher.UI
 {
     /// <summary>
-    /// Base for Painter2D visuals. Colours come from USS so themes swap them:
+    /// Base for custom visuals. Colours come from USS so themes swap them:
     /// "color" = main mark, "border-top-color" = grid, "border-left-color" = secondary mark.
     /// </summary>
     internal abstract class PaintedElement : VisualElement
@@ -23,6 +23,9 @@ namespace ThanhDV.BugCatcher.UI
         protected Color MainColor => resolvedStyle.color;
         protected Color GridColor => resolvedStyle.borderTopColor;
         protected Color SecondaryColor => resolvedStyle.borderLeftColor;
+
+        // Compare against the last draw at quarter-point resolution. The mesh keeps full precision.
+        protected static int HeightKey(float y) => (int)(y * 4f + 0.5f);
 
         protected static void HorizontalLines(Painter2D painter, Rect rect, float[] fractions, Color color)
         {
@@ -87,6 +90,173 @@ namespace ThanhDV.BugCatcher.UI
                 else painter.LineTo(point);
             }
             painter.Stroke();
+        }
+    }
+
+    /// <summary>
+    /// One bar per frame, height = frame time on a fixed scale, coloured by the FPS status thresholds.
+    /// Grid lines mark 60 and 30 FPS; frames slower than <see cref="MaxMs"/> reach the top.
+    /// USS: "color" = good, "border-left-color" = caution, "border-right-color" = critical, "border-top-color" = grid.
+    /// </summary>
+    internal class FrameTimeGraph : PaintedElement
+    {
+        private const float MaxMs = 50f;
+        private static readonly float[] grid = { 1f - 1000f / 60f / MaxMs, 1f - 1000f / 30f / MaxMs };
+
+        private SampleHistory data;
+        private GraphMesh mesh;
+        private int[] drawnBars;
+        private Color drawnGrid, drawnGood, drawnCaution, drawnCritical;
+        private Vector2 layoutSize;
+        private int layoutCount;
+
+        public FrameTimeGraph()
+        {
+            AddToClassList("frame-graph");
+        }
+
+        public void Bind(SampleHistory history)
+        {
+            data = history;
+            mesh = new GraphMesh(grid.Length + history.Capacity);
+            drawnBars = new int[history.Capacity];
+            layoutCount = -1;
+            MarkDirtyRepaint();
+        }
+
+        public void RepaintIfChanged()
+        {
+            Rect rect = contentRect;
+            if (data == null || !(rect.width > 0f && rect.height > 0f)) return;
+
+            int count = data.Count;
+            if (layoutSize.x != rect.width || layoutSize.y != rect.height || layoutCount != count ||
+                !drawnGrid.Equals(GridColor) || !drawnGood.Equals(MainColor) ||
+                !drawnCaution.Equals(SecondaryColor) || !drawnCritical.Equals(resolvedStyle.borderRightColor))
+            {
+                MarkDirtyRepaint();
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                float ms = data[i];
+                if (drawnBars[i] == BarKey(BarTop(ms, rect.height), BarStatus(ms))) continue;
+                MarkDirtyRepaint();
+                return;
+            }
+        }
+
+        private static int BarKey(float top, int status) => HeightKey(top) * 3 + status;
+
+        private static int BarStatus(float ms)
+        {
+            float fps = 1000f / Mathf.Max(ms, 0.01f);
+            // RoundToInt rounds half to even, so 49.5 and 29.5 enter the higher band.
+            if (fps >= PerformanceService.GoodFps - 0.5f) return 0;
+            return fps >= PerformanceService.CautionFps - 0.5f ? 1 : 2;
+        }
+
+        private static float BarTop(float ms, float height) =>
+            height - Mathf.Clamp(ms / MaxMs * height, 1f, height);
+
+        protected override void Draw(MeshGenerationContext context)
+        {
+            Rect rect = contentRect;
+            if (rect.width <= 0f || rect.height <= 0f || data == null) return;
+
+            drawnGrid = GridColor;
+            Color32 gridColor = drawnGrid;
+            for (int i = 0; i < grid.Length; i++)
+            {
+                float y = Mathf.Round(rect.height * grid[i]);
+                mesh.SetQuad(i, 0f, y, rect.width, y + 1f, gridColor);
+            }
+
+            if (layoutSize.x != rect.width || layoutSize.y != rect.height || layoutCount != data.Count)
+            {
+                float step = rect.width / data.Capacity;
+                float x0 = rect.width - data.Count * step;
+                float barWidth = Mathf.Max(1f, step - 0.5f);
+                for (int i = 0; i < data.Count; i++)
+                {
+                    float left = x0 + i * step;
+                    mesh.SetQuad(grid.Length + i, left, rect.height, left + barWidth, rect.height, default);
+                }
+
+                layoutSize = rect.size;
+                layoutCount = data.Count;
+            }
+
+            drawnGood = MainColor;
+            drawnCaution = SecondaryColor;
+            drawnCritical = resolvedStyle.borderRightColor;
+            Color32 good = drawnGood, caution = drawnCaution, critical = drawnCritical;
+            for (int i = 0; i < data.Count; i++)
+            {
+                float ms = data[i];
+                int status = BarStatus(ms);
+                float top = BarTop(ms, rect.height);
+                drawnBars[i] = BarKey(top, status);
+                mesh.SetBar(grid.Length + i, top, status == 0 ? good : status == 1 ? caution : critical);
+            }
+            mesh.Draw(context);
+        }
+    }
+
+    internal sealed class GraphMesh
+    {
+        private readonly Vertex[] vertices;
+        private readonly ushort[] indices;
+
+        public GraphMesh(int count)
+        {
+            vertices = new Vertex[count * 4];
+            indices = new ushort[count * 6];
+            for (int i = 0; i < count; i++)
+            {
+                int v = i * 4, n = i * 6;
+                indices[n] = (ushort)v;
+                indices[n + 1] = (ushort)(v + 1);
+                indices[n + 2] = (ushort)(v + 2);
+                indices[n + 3] = (ushort)(v + 2);
+                indices[n + 4] = (ushort)(v + 3);
+                indices[n + 5] = (ushort)v;
+            }
+
+        }
+
+        public void SetQuad(int quad, float left, float top, float right, float bottom, Color32 color)
+        {
+            int v = quad * 4;
+            vertices[v].position = new Vector3(left, top, Vertex.nearZ);
+            vertices[v + 1].position = new Vector3(right, top, Vertex.nearZ);
+            vertices[v + 2].position = new Vector3(right, bottom, Vertex.nearZ);
+            vertices[v + 3].position = new Vector3(left, bottom, Vertex.nearZ);
+            SetTint(v, color);
+        }
+
+        public void SetBar(int quad, float top, Color32 color)
+        {
+            int v = quad * 4;
+            vertices[v].position.y = top;
+            vertices[v + 1].position.y = top;
+            SetTint(v, color);
+        }
+
+        private void SetTint(int vertex, Color32 color)
+        {
+            vertices[vertex].tint = color;
+            vertices[vertex + 1].tint = color;
+            vertices[vertex + 2].tint = color;
+            vertices[vertex + 3].tint = color;
+        }
+
+        public void Draw(MeshGenerationContext context)
+        {
+            MeshWriteData mesh = context.Allocate(vertices.Length, indices.Length);
+            mesh.SetAllVertices(vertices);
+            mesh.SetAllIndices(indices);
         }
     }
 

@@ -50,6 +50,7 @@ namespace ThanhDV.BugCatcher
         private const int GraphSamples = 60;
         /// <summary>Matches the HUD and bubble text refresh, so every refresh shows a fresh window.</summary>
         private const float FpsWindow = 0.25f;
+        private const int FrameTimeSamples = 120;
 
         private readonly G_FpsMonitor fps;
         private readonly G_RamMonitor ram;
@@ -81,6 +82,8 @@ namespace ThanhDV.BugCatcher
 
         public SampleHistory FpsHistory { get; } = new SampleHistory(GraphSamples);
 
+        /// <summary>Duration of each of the last frames, in milliseconds, oldest first.</summary>
+        public SampleHistory FrameTimeHistory { get; } = new SampleHistory(FrameTimeSamples);
         public SampleHistory AllocatedHistory { get; } = new SampleHistory(GraphSamples);
         public SampleHistory ReservedHistory { get; } = new SampleHistory(GraphSamples);
         public SampleHistory MonoHistory { get; } = new SampleHistory(GraphSamples);
@@ -100,6 +103,7 @@ namespace ThanhDV.BugCatcher
             if (unscaledDeltaTime > 0f)
             {
                 worstFpsInInterval = Mathf.Min(worstFpsInInterval, 1f / unscaledDeltaTime);
+                FrameTimeHistory.Push(unscaledDeltaTime * 1000f);
                 windowFrames++;
                 windowTime += unscaledDeltaTime;
                 if (windowTime >= FpsWindow)

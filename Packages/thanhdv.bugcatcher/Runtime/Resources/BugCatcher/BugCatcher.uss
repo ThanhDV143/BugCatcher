@@ -399,6 +399,12 @@
 .graph-stack { position: relative; }
 .line-graph { border-top-color: var(--divider); }
 .graph-fps { color: var(--graph-fps); }
+.frame-graph {
+    color: var(--status-good);
+    border-left-color: var(--status-caution);
+    border-right-color: var(--status-critical);
+    border-top-color: var(--divider);
+}
 .graph-ram-allocated { color: var(--graph-ram-allocated); }
 .graph-ram-reserved { color: var(--graph-ram-reserved); }
 .graph-ram-mono { color: var(--graph-ram-mono); }
