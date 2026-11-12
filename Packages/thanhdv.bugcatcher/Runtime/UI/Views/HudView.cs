@@ -298,7 +298,8 @@ namespace ThanhDV.BugCatcher.UI
                 return;
             }
 
-            Root.Add(Div("mod-head", audioHeader, Div("row-baseline", rmsValue, Text(" dB", "mono fs-caption c-secondary"))));
+            audioHeader.AddToClassList("grow");
+            Root.Add(Div("mod-head", audioHeader, Div("row-baseline mod-audio-level", rmsValue, Text(" dB", "mono fs-caption c-secondary"))));
             spectrum = new SpectrumBars(32, -60f, 1.65f, false, new[] { 0.5f });
             spectrum.AddToClassList("mod-spectrum");
             Root.Add(spectrum);

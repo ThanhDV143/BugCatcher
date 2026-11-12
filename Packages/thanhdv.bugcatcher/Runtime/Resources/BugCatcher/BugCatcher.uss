@@ -387,6 +387,7 @@
 .layout-desktop .mod-w { width: 200px; }
 .mod-sys { width: 390px; }
 .mod-head { flex-direction: row; justify-content: space-between; align-items: flex-end; }
+.mod-audio-level { flex-shrink: 0; white-space: nowrap; }
 .mod-stats { flex-direction: row; }
 .mod-stat { flex-grow: 1; flex-basis: 0; flex-direction: column; margin-right: 4px; }
 .mod-ram-row { flex-direction: row; align-items: center; }
