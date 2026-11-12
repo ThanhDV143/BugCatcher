@@ -35,6 +35,10 @@ namespace ThanhDV.BugCatcher.UI
         private TextField searchField;
         private VisualElement moreMenu;
         private VisualElement aside;
+        private VisualElement consoleRoot;
+        private ScrollView side;
+        private bool wide;
+        private bool suggestionsShown;
         private string search = string.Empty;
         private LogEntry selected;
         private LogEntry asideEntry;
@@ -58,6 +62,20 @@ namespace ThanhDV.BugCatcher.UI
             mode = layoutMode;
             bool desktop = mode == LayoutMode.Desktop;
             var root = Div("console" + (desktop ? " console-desktop" : ""));
+            consoleRoot = root;
+            wide = false;
+            suggestionsShown = false;
+            if (mode == LayoutMode.Landscape)
+            {
+                // Column between the rail and the log while typing a command (see SetWide).
+                side = new ScrollView(ScrollViewMode.Vertical) { verticalScrollerVisibility = ScrollerVisibility.Hidden };
+                side.AddToClassList("console-side");
+                root.Add(side);
+            }
+            else
+            {
+                side = null;
+            }
             var main = Div("console-main");
             root.Add(main);
 
@@ -384,7 +402,26 @@ namespace ThanhDV.BugCatcher.UI
 
         private void OnSuggestionsShown(bool shown)
         {
-            if (list != null && mode != LayoutMode.Desktop) SetClass(list, "dimmed", shown);
+            suggestionsShown = shown;
+            if (list != null && mode != LayoutMode.Desktop) SetClass(list, "dimmed", shown && !wide);
+        }
+
+        /// <summary>True while the command field has keyboard focus.</summary>
+        public bool CommandFocused => commandBar.Focused;
+
+        /// <summary>
+        /// Landscape with the keyboard up: suggestions move to their own column beside the log
+        /// instead of stacking above the input, where they would push it under the keyboard.
+        /// </summary>
+        public void SetWide(bool isWide)
+        {
+            if (side == null || wide == isWide) return;
+
+            wide = isWide;
+            consoleRoot.EnableInClassList("console-wide", wide);
+            if (wide) side.Add(commandBar.Suggestions);
+            else commandBar.RestoreSuggestions();
+            if (list != null) SetClass(list, "dimmed", suggestionsShown && !wide);
         }
     }
 }

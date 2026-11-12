@@ -25,12 +25,17 @@ namespace ThanhDV.BugCatcher.UI
         private const float SheetDragSnap = 80f;
         /// <summary>Space kept between a focused field in a scroll view and the keyboard.</summary>
         private const float KeyboardGap = 10f;
+        /// <summary>Height of a labelled rail tab (.rail-tab in the USS).</summary>
+        private const float RailTabHeight = 52f;
+        /// <summary>How long the keyboard layout outlives the keyboard, so the tap that closed it still lands.</summary>
+        private const float KeyboardHoldTime = 0.3f;
 
         private static readonly string[] tabNames = { "Console", "HUD", "Audio", "System", "Settings" };
         private static readonly string[] tabIcons = { "console", "hud", "audio", "system", "settings" };
 
         private readonly BugCatcherUI ui;
         private readonly IPanelTab[] tabs;
+        private readonly ConsoleTab console;
         private readonly VisualElement[] tabContent = new VisualElement[5];
         private readonly VisualElement[] navItems = new VisualElement[5];
         private VisualElement container;
@@ -42,6 +47,8 @@ namespace ThanhDV.BugCatcher.UI
         private float sheetDragOffset;
         private bool sheetDragging;
         private float keyboardLift;
+        private bool keyboardWide;
+        private float keyboardHoldUntil;
 
         public PanelView(BugCatcherUI ui)
         {
@@ -50,9 +57,10 @@ namespace ThanhDV.BugCatcher.UI
             Root.pickingMode = PickingMode.Ignore;
             Show(Root, false);
 
+            console = new ConsoleTab(ui, this);
             tabs = new IPanelTab[]
             {
-                new ConsoleTab(ui, this),
+                console,
                 new HudTab(ui),
                 new AudioTab(),
                 new SystemTab(),
@@ -182,6 +190,7 @@ namespace ThanhDV.BugCatcher.UI
             // Edit in place: the native input strip Android/iOS add above the keyboard would cover the panel.
             container.Query<TextField>().ForEach(f => f.hideMobileInput = true);
             keyboardLift = 0f;
+            keyboardWide = false;
 
             ApplyGaps(container);
             if (wasOpen) container.AddToClassList("open");
@@ -228,10 +237,23 @@ namespace ThanhDV.BugCatcher.UI
                 rail.Add(navItems[i]);
             }
             container.Add(rail);
+            rail.RegisterCallback<GeometryChangedEvent>(_ => FitRail(rail));
 
             body = Div("panel-body");
             container.Add(body);
             Root.Add(container);
+        }
+
+        /// <summary>Drops the tab labels when the rail is too short to show every tab at full size.</summary>
+        private static void FitRail(VisualElement rail)
+        {
+            float available = rail.layout.height - rail.resolvedStyle.paddingTop - rail.resolvedStyle.paddingBottom;
+            float needed = 0f;
+            foreach (VisualElement child in rail.Children())
+            {
+                needed += child.ClassListContains("rail-tab") ? RailTabHeight : child.layout.height + child.resolvedStyle.marginTop + child.resolvedStyle.marginBottom;
+            }
+            rail.EnableInClassList("compact", available < needed);
         }
 
         private void BuildWindow()
@@ -272,7 +294,8 @@ namespace ThanhDV.BugCatcher.UI
                     ApplySheetHeight();
                     break;
                 case LayoutMode.Landscape:
-                    container.style.width = Mathf.Min(500f + safe.Right, size.x * 0.75f);
+                    // Typing a command: as wide as the safe area (like the keyboard), so suggestions get a column beside the log.
+                    container.style.width = keyboardWide ? size.x - safe.Left : Mathf.Min(500f + safe.Right, size.x * 0.75f);
                     container.style.paddingRight = safe.Right;
                     container.Q(className: "rail").style.paddingBottom = safe.Bottom;
                     break;
@@ -306,11 +329,26 @@ namespace ThanhDV.BugCatcher.UI
             {
                 lift = Mathf.Max(0f, KeyboardHeight() / ui.Scale - ui.SafeInsets.Bottom);
             }
-            if (Mathf.Approximately(lift, keyboardLift)) return;
 
-            keyboardLift = lift;
-            container.style.marginBottom = lift;
-            if (lift > 0f) container.RegisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
+            // A tap that takes focus away closes the keyboard on pointer down; holding the layout a moment
+            // keeps the tapped button (run, a suggestion) under the finger until pointer up.
+            bool keyboardUp = lift > 0f;
+            if (keyboardUp) keyboardHoldUntil = Time.unscaledTime + KeyboardHoldTime;
+            else if (Time.unscaledTime < keyboardHoldUntil) lift = keyboardLift;
+
+            if (!Mathf.Approximately(lift, keyboardLift))
+            {
+                keyboardLift = lift;
+                container.style.marginBottom = lift;
+                if (lift > 0f) container.RegisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
+            }
+
+            bool wide = builtMode == LayoutMode.Landscape && lift > 0f && (console.CommandFocused || keyboardWide && !keyboardUp);
+            if (wide == keyboardWide) return;
+
+            keyboardWide = wide;
+            console.SetWide(wide);
+            ApplySafeInsets();
         }
 
         /// <summary>Once the panel has shrunk, brings a field inside a scroll view back into view.</summary>

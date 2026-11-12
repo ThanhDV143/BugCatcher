@@ -25,6 +25,7 @@ namespace ThanhDV.BugCatcher.UI
         private LayoutMode mode;
         private TextField field;
         private VisualElement inputBox;
+        private VisualElement area;
         private VisualElement suggestions;
         private VisualElement historyButton;
         private bool focused;
@@ -39,17 +40,26 @@ namespace ThanhDV.BugCatcher.UI
             this.onShown = onShown;
         }
 
+        /// <summary>True while the command field has keyboard focus.</summary>
+        public bool Focused => focused;
+
+        /// <summary>The suggestions block; the console may move it to a column of its own.</summary>
+        public VisualElement Suggestions => suggestions;
+
+        /// <summary>Puts the suggestions block back above the input row.</summary>
+        public void RestoreSuggestions() => area.Insert(0, suggestions);
+
         /// <summary>Returns the suggestions block (phones) and input row; both go at the bottom of the console.</summary>
         public VisualElement Build(LayoutMode layoutMode)
         {
             mode = layoutMode;
             bool desktop = mode == LayoutMode.Desktop;
-            var root = Div("cmd-area");
+            area = Div("cmd-area");
 
             suggestions = Div(desktop ? "sugg-pop" : "sugg");
             suggestions.pickingMode = PickingMode.Position;
             Show(suggestions, false);
-            root.Add(suggestions);
+            area.Add(suggestions);
 
             field = new TextField();
             field.AddToClassList("bare-field");
@@ -88,10 +98,10 @@ namespace ThanhDV.BugCatcher.UI
                 footer.Add(Tap(Div("btn-square btn-accent", Icon("run")), Run));
             }
 
-            root.Add(footer);
+            area.Add(footer);
             renderedFor = null;
             shown = false;
-            return root;
+            return area;
         }
 
         private void ToggleHistory()
