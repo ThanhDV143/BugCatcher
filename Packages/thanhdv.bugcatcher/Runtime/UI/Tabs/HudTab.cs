@@ -23,6 +23,9 @@ namespace ThanhDV.BugCatcher.UI
         private Label scaleValue;
         private Label opacityValue;
         private int customThemeIndex;
+        private VisualElement dragChip;
+        private HudModule dragModule;
+        private Vector2 dragStart;
 
         public HudTab(BugCatcherUI ui)
         {
@@ -34,6 +37,10 @@ namespace ThanhDV.BugCatcher.UI
         public VisualElement Build(LayoutMode mode)
         {
             root = Div("tab-page");
+            dragChip = null;
+            root.RegisterCallback<PointerCaptureEvent>(OnDragCapture, TrickleDown.TrickleDown);
+            root.RegisterCallback<PointerMoveEvent>(OnDragMove, TrickleDown.TrickleDown);
+            root.RegisterCallback<PointerUpEvent>(OnDragUp, TrickleDown.TrickleDown);
             var scroll = new ScrollView(ScrollViewMode.Vertical);
             scroll.AddToClassList("grow");
             scroll.verticalScrollerVisibility = mode == LayoutMode.Desktop ? ScrollerVisibility.Auto : ScrollerVisibility.Hidden;
@@ -136,40 +143,66 @@ namespace ThanhDV.BugCatcher.UI
         {
             var chip = Div("pos-chip", Text(moduleNames[(int)module] + " · " + modeNames[(int)mode], "mono fs-caption"));
             chip.pickingMode = PickingMode.Position;
-            Vector2 start = default;
-            bool dragging = false;
-
             chip.RegisterCallback<PointerDownEvent>(e =>
             {
-                start = e.position;
-                dragging = true;
+                dragChip = chip;
+                dragModule = module;
+                dragStart = e.position;
                 chip.CapturePointer(e.pointerId);
                 chip.AddToClassList("dragging");
             });
-            chip.RegisterCallback<PointerMoveEvent>(e =>
+            // Unity 6 sends captured pointer events to the chip alone; older versions also trickle them through the root.
+            chip.RegisterCallback<PointerMoveEvent>(OnDragMove);
+            chip.RegisterCallback<PointerUpEvent>(OnDragUp);
+            // Capture lost to something else (e.g. a cancelled touch): drop the drag instead of leaving the chip stuck.
+            chip.RegisterCallback<PointerCaptureOutEvent>(_ =>
             {
-                if (!dragging) return;
-                Vector2 delta = (Vector2)e.position - start;
-                chip.style.translate = new Translate(delta.x, delta.y, 0f);
-                int target = QuadrantAt(e.position);
-                for (int q = 0; q < 4; q++) SetClass(quadrants[q], "target", q == target);
-            });
-            chip.RegisterCallback<PointerUpEvent>(e =>
-            {
-                if (!dragging) return;
-                dragging = false;
-                chip.ReleasePointer(e.pointerId);
-                chip.RemoveFromClassList("dragging");
-                chip.style.translate = StyleKeyword.Null;
-                foreach (VisualElement quadrant in quadrants) quadrant.RemoveFromClassList("target");
-
-                int target = QuadrantAt(e.position);
-                if (target < 0 || target == (int)Settings.hud.corners[(int)module]) return;
-                Settings.hud.corners[(int)module] = (HudCorner)target;
-                Settings.activePreset = -2;
-                Settings.Changed();
+                if (dragChip == chip) EndDrag();
             });
             return chip;
+        }
+
+        // The tab's ScrollView hooks the pointer moves of whichever child captures the pointer and, once the touch
+        // moves, takes the capture to scroll. Stopping the chip's capture event on the tab root (trickle-down) keeps
+        // it from hooking the chip; move and up are stopped there too where they propagate (pre-Unity 6).
+        private void OnDragCapture(PointerCaptureEvent e)
+        {
+            if (dragChip != null && e.target == dragChip) e.StopPropagation();
+        }
+
+        private void OnDragMove(PointerMoveEvent e)
+        {
+            if (dragChip == null) return;
+            e.StopPropagation();
+            Vector2 delta = (Vector2)e.position - dragStart;
+            dragChip.style.translate = new Translate(delta.x, delta.y, 0f);
+            int target = QuadrantAt(e.position);
+            for (int q = 0; q < 4; q++) SetClass(quadrants[q], "target", q == target);
+        }
+
+        private void OnDragUp(PointerUpEvent e)
+        {
+            if (dragChip == null) return;
+            e.StopPropagation();
+            VisualElement chip = dragChip;
+            HudModule module = dragModule;
+            EndDrag();
+            chip.ReleasePointer(e.pointerId);
+
+            int target = QuadrantAt(e.position);
+            if (target < 0 || target == (int)Settings.hud.corners[(int)module]) return;
+            Settings.hud.corners[(int)module] = (HudCorner)target;
+            Settings.activePreset = -2;
+            Settings.Changed();
+        }
+
+        private void EndDrag()
+        {
+            if (dragChip == null) return;
+            dragChip.RemoveFromClassList("dragging");
+            dragChip.style.translate = StyleKeyword.Null;
+            dragChip = null;
+            foreach (VisualElement quadrant in quadrants) quadrant.RemoveFromClassList("target");
         }
 
         private int QuadrantAt(Vector2 panelPosition)
