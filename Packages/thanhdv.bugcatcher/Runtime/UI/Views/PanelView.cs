@@ -23,6 +23,8 @@ namespace ThanhDV.BugCatcher.UI
         private const float AnimationMs = 200f;
         private const float HalfSheet = 0.43f;
         private const float SheetDragSnap = 80f;
+        /// <summary>Space kept between a focused field in a scroll view and the keyboard.</summary>
+        private const float KeyboardGap = 10f;
 
         private static readonly string[] tabNames = { "Console", "HUD", "Audio", "System", "Settings" };
         private static readonly string[] tabIcons = { "console", "hud", "audio", "system", "settings" };
@@ -39,6 +41,7 @@ namespace ThanhDV.BugCatcher.UI
         private float sheetDragStart;
         private float sheetDragOffset;
         private bool sheetDragging;
+        private float keyboardLift;
 
         public PanelView(BugCatcherUI ui)
         {
@@ -176,6 +179,9 @@ namespace ThanhDV.BugCatcher.UI
                 tabContent[i].AddToClassList("tab-content");
                 body.Add(tabContent[i]);
             }
+            // Edit in place: the native input strip Android/iOS add above the keyboard would cover the panel.
+            container.Query<TextField>().ForEach(f => f.hideMobileInput = true);
+            keyboardLift = 0f;
 
             ApplyGaps(container);
             if (wasOpen) container.AddToClassList("open");
@@ -298,11 +304,83 @@ namespace ThanhDV.BugCatcher.UI
             float lift = 0f;
             if (TouchScreenKeyboard.visible)
             {
-                Rect area = TouchScreenKeyboard.area;
-                lift = Mathf.Max(0f, area.height / ui.Scale - ui.SafeInsets.Bottom);
+                lift = Mathf.Max(0f, KeyboardHeight() / ui.Scale - ui.SafeInsets.Bottom);
             }
+            if (Mathf.Approximately(lift, keyboardLift)) return;
+
+            keyboardLift = lift;
             container.style.marginBottom = lift;
+            if (lift > 0f) container.RegisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
         }
+
+        /// <summary>Once the panel has shrunk, brings a field inside a scroll view back into view.</summary>
+        private void OnKeyboardLayout(GeometryChangedEvent e)
+        {
+            var target = (VisualElement)e.currentTarget;
+            target.UnregisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
+            // Next tick: the scroll view updates its scroll range in its own handler of this layout pass.
+            target.schedule.Execute(() =>
+            {
+                if (!(target.panel?.focusController?.focusedElement is VisualElement focused)) return;
+                ScrollView scroll = focused.GetFirstAncestorOfType<ScrollView>();
+                if (scroll == null) return;
+
+                Rect view = scroll.contentViewport.worldBound;
+                // Measure the visible box (the bordered .field wrapper), not the bare TextField inside it.
+                VisualElement box = focused;
+                for (VisualElement el = focused; el != null && el != scroll; el = el.parent)
+                {
+                    if (el.ClassListContains("field")) { box = el; break; }
+                }
+                Rect field = box.worldBound;
+                float delta = 0f;
+                if (field.yMax + KeyboardGap > view.yMax) delta = field.yMax + KeyboardGap - view.yMax;
+                else if (field.yMin < view.yMin) delta = field.yMin - view.yMin;
+                scroll.scrollOffset += new Vector2(0f, delta);
+            });
+        }
+
+        /// <summary>Keyboard height in screen pixels.</summary>
+        private static float KeyboardHeight()
+        {
+            float height = TouchScreenKeyboard.area.height;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Unity reports an empty area on some Android devices; measure the window's visible frame instead.
+            if (height <= 0f) height = AndroidKeyboardHeight();
+#endif
+            return height;
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private static float androidKeyboardHeight;
+        private static float androidKeyboardPolled = float.NegativeInfinity;
+
+        /// <summary>Polled at 10 Hz: each poll is several JNI calls.</summary>
+        private static float AndroidKeyboardHeight()
+        {
+            if (Time.unscaledTime - androidKeyboardPolled < 0.1f) return androidKeyboardHeight;
+
+            androidKeyboardPolled = Time.unscaledTime;
+            androidKeyboardHeight = MeasureAndroidKeyboard();
+            return androidKeyboardHeight;
+        }
+
+        private static float MeasureAndroidKeyboard()
+        {
+            using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var window = activity.Call<AndroidJavaObject>("getWindow"))
+            using (var decor = window.Call<AndroidJavaObject>("getDecorView"))
+            using (var visible = new AndroidJavaObject("android.graphics.Rect"))
+            {
+                decor.Call("getWindowVisibleDisplayFrame", visible);
+                int decorHeight = decor.Call<int>("getHeight");
+                if (decorHeight <= 0) return 0f;
+                // Screen may render below native resolution.
+                return Mathf.Max(0, decorHeight - visible.Get<int>("bottom")) * (float)Screen.height / decorHeight;
+            }
+        }
+#endif
 
         private void OnHandleDown(PointerDownEvent e)
         {
