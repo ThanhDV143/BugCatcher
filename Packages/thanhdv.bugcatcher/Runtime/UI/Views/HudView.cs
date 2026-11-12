@@ -238,7 +238,18 @@ namespace ThanhDV.BugCatcher.UI
             if (mode != HudMode.Full) return;
 
             var stack = Div("mod-graph graph-stack");
-            System.Func<float> max = () => Mathf.Max(1f, Perf.ReservedHistory.Max() * 1.15f);
+            int scaleVersion = -1;
+            float scaleMax = 1f;
+            float Max()
+            {
+                int version = Perf.HistoryVersion;
+                if (scaleVersion != version)
+                {
+                    scaleVersion = version;
+                    scaleMax = Mathf.Max(1f, Perf.ReservedHistory.Max() * 1.15f);
+                }
+                return scaleMax;
+            }
             ramGraphs = new[]
             {
                 new LineGraph(new[] { 1f / 3f, 2f / 3f }),
@@ -248,9 +259,9 @@ namespace ThanhDV.BugCatcher.UI
             ramGraphs[0].AddToClassList("graph-ram-reserved");
             ramGraphs[1].AddToClassList("graph-ram-allocated");
             ramGraphs[2].AddToClassList("graph-ram-mono");
-            ramGraphs[0].Bind(Perf.ReservedHistory, max);
-            ramGraphs[1].Bind(Perf.AllocatedHistory, max);
-            ramGraphs[2].Bind(Perf.MonoHistory, max);
+            ramGraphs[0].Bind(Perf.ReservedHistory, Max);
+            ramGraphs[1].Bind(Perf.AllocatedHistory, Max);
+            ramGraphs[2].Bind(Perf.MonoHistory, Max);
             foreach (LineGraph graph in ramGraphs)
             {
                 graph.AddToClassList("fill");
@@ -450,7 +461,7 @@ namespace ThanhDV.BugCatcher.UI
         public void RepaintGraphs()
         {
             if (ramGraphs == null) return;
-            foreach (LineGraph graph in ramGraphs) graph.MarkDirtyRepaint();
+            foreach (LineGraph graph in ramGraphs) graph.RepaintIfChanged();
         }
 
         private static void SetStatusText(Label label, int fps)

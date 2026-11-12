@@ -26,31 +26,20 @@ namespace ThanhDV.BugCatcher.UI
 
         // Compare against the last draw at quarter-point resolution. The mesh keeps full precision.
         protected static int HeightKey(float y) => (int)(y * 4f + 0.5f);
-
-        protected static void HorizontalLines(Painter2D painter, Rect rect, float[] fractions, Color color)
-        {
-            if (fractions == null || fractions.Length == 0) return;
-
-            painter.strokeColor = color;
-            painter.lineWidth = 1f;
-            painter.lineCap = LineCap.Butt;
-            painter.BeginPath();
-            foreach (float f in fractions)
-            {
-                float y = Mathf.Clamp(rect.height * f, 0.5f, rect.height - 0.5f);
-                painter.MoveTo(new Vector2(0f, y));
-                painter.LineTo(new Vector2(rect.width, y));
-            }
-            painter.Stroke();
-        }
     }
 
     /// <summary>One series line graph over a <see cref="SampleHistory"/>.</summary>
     internal class LineGraph : PaintedElement
     {
+        private const float HalfStroke = 0.75f;
+        private readonly float[] grid;
         private SampleHistory data;
         private Func<float> maxValue;
-        private readonly float[] grid;
+        private GraphMesh mesh;
+        private int[] drawnPoints;
+        private Vector2 drawnSize;
+        private int drawnCount;
+        private Color drawnGrid, drawnLine;
 
         public LineGraph(float[] gridFractions = null)
         {
@@ -62,34 +51,77 @@ namespace ThanhDV.BugCatcher.UI
         {
             data = history;
             maxValue = max;
+            mesh = new GraphMesh(grid?.Length ?? 0, history.Capacity);
+            drawnPoints = new int[history.Capacity];
+            drawnCount = -1;
             MarkDirtyRepaint();
         }
+
+        public void RepaintIfChanged()
+        {
+            Rect rect = contentRect;
+            if (data == null || !(rect.width > 0f && rect.height > 0f)) return;
+
+            if (drawnSize.x != rect.width || drawnSize.y != rect.height || drawnCount != data.Count ||
+                !drawnGrid.Equals(GridColor) || !drawnLine.Equals(MainColor))
+            {
+                MarkDirtyRepaint();
+                return;
+            }
+
+            if (data.Count < 2) return;
+            float max = Mathf.Max(1e-3f, maxValue());
+            for (int i = 0; i < data.Count; i++)
+            {
+                if (drawnPoints[i] == HeightKey(SampleY(data[i], max, rect.height))) continue;
+                MarkDirtyRepaint();
+                return;
+            }
+        }
+
+        private static float SampleY(float sample, float max, float height) =>
+            Mathf.Clamp(height - sample / max * height, 1f, height - 1f);
 
         protected override void Draw(MeshGenerationContext context)
         {
             Rect rect = contentRect;
-            if (rect.width <= 0f || rect.height <= 0f) return;
+            if (data == null || !(rect.width > 0f && rect.height > 0f)) return;
 
-            Painter2D painter = context.painter2D;
-            HorizontalLines(painter, rect, grid, GridColor);
-            if (data == null || data.Count < 2) return;
+            drawnSize = rect.size;
+            drawnCount = data.Count;
+            drawnGrid = GridColor;
+            drawnLine = MainColor;
+            mesh.SetHorizontalGrid(rect, grid, drawnGrid);
 
-            float max = Mathf.Max(1e-3f, maxValue());
-            float step = rect.width / (data.Capacity - 1);
-            float x0 = rect.width - (data.Count - 1) * step;
-            painter.strokeColor = MainColor;
-            painter.lineWidth = 1.5f;
-            painter.lineJoin = LineJoin.Round;
-            painter.lineCap = LineCap.Round;
-            painter.BeginPath();
-            for (int i = 0; i < data.Count; i++)
+            if (drawnCount >= 2)
             {
-                float y = rect.height - data[i] / max * rect.height;
-                var point = new Vector2(x0 + i * step, Mathf.Clamp(y, 1f, rect.height - 1f));
-                if (i == 0) painter.MoveTo(point);
-                else painter.LineTo(point);
+                float max = Mathf.Max(1e-3f, maxValue());
+                int last = drawnCount - 1;
+                float step = rect.width / (data.Capacity - 1);
+                float x0 = rect.width - last * step;
+                float y = SampleY(data[0], max, rect.height);
+                float nextY = SampleY(data[1], max, rect.height);
+                Vector2 normal = new Vector2(y - nextY, step).normalized;
+                Color32 color = drawnLine;
+                for (int i = 0; i <= last; i++)
+                {
+                    Vector2 outgoing = i < last ? new Vector2(y - nextY, step).normalized : normal;
+                    // Adjacent segments share the same join. Clamp its length at sharp changes.
+                    Vector2 offset = (normal + outgoing) * (HalfStroke / Mathf.Max(0.5f, 1f + Vector2.Dot(normal, outgoing)));
+                    mesh.SetLinePoint(i, new Vector2(x0 + i * step, y), offset, color);
+                    drawnPoints[i] = HeightKey(y);
+                    if (i == last) break;
+                    normal = outgoing;
+                    y = nextY;
+                    if (i + 1 < last) nextY = SampleY(data[i + 2], max, rect.height);
+                }
+
+                // Collapse unused segments at the final sample during warm-up.
+                var end = new Vector2(x0 + last * step, y);
+                for (int i = drawnCount; i < data.Capacity; i++)
+                    mesh.SetLinePoint(i, end, Vector2.zero, color);
             }
-            painter.Stroke();
+            mesh.Draw(context);
         }
     }
 
@@ -208,11 +240,13 @@ namespace ThanhDV.BugCatcher.UI
     {
         private readonly Vertex[] vertices;
         private readonly ushort[] indices;
+        private readonly int lineStart;
 
-        public GraphMesh(int count)
+        public GraphMesh(int count, int linePoints = 0)
         {
-            vertices = new Vertex[count * 4];
-            indices = new ushort[count * 6];
+            lineStart = count * 4;
+            vertices = new Vertex[lineStart + linePoints * 2];
+            indices = new ushort[(count + Mathf.Max(0, linePoints - 1)) * 6];
             for (int i = 0; i < count; i++)
             {
                 int v = i * 4, n = i * 6;
@@ -224,6 +258,36 @@ namespace ThanhDV.BugCatcher.UI
                 indices[n + 5] = (ushort)v;
             }
 
+            for (int i = 0; i < linePoints - 1; i++)
+            {
+                int v = lineStart + i * 2, n = (count + i) * 6;
+                indices[n] = (ushort)v;
+                indices[n + 1] = (ushort)(v + 2);
+                indices[n + 2] = (ushort)(v + 3);
+                indices[n + 3] = (ushort)(v + 3);
+                indices[n + 4] = (ushort)(v + 1);
+                indices[n + 5] = (ushort)v;
+            }
+        }
+
+        public int SetHorizontalGrid(Rect rect, float[] fractions, Color32 color)
+        {
+            if (fractions == null) return 0;
+            for (int i = 0; i < fractions.Length; i++)
+            {
+                float y = Mathf.Clamp(rect.height * fractions[i], 0.5f, rect.height - 0.5f);
+                SetQuad(i, 0f, y - 0.5f, rect.width, y + 0.5f, color);
+            }
+            return fractions.Length;
+        }
+
+        public void SetLinePoint(int point, Vector2 center, Vector2 offset, Color32 color)
+        {
+            int v = lineStart + point * 2;
+            vertices[v].position = new Vector3(center.x - offset.x, center.y - offset.y, Vertex.nearZ);
+            vertices[v + 1].position = new Vector3(center.x + offset.x, center.y + offset.y, Vertex.nearZ);
+            vertices[v].tint = color;
+            vertices[v + 1].tint = color;
         }
 
         public void SetQuad(int quad, float left, float top, float right, float bottom, Color32 color)
@@ -254,6 +318,7 @@ namespace ThanhDV.BugCatcher.UI
 
         public void Draw(MeshGenerationContext context)
         {
+            if (indices.Length == 0) return;
             MeshWriteData mesh = context.Allocate(vertices.Length, indices.Length);
             mesh.SetAllVertices(vertices);
             mesh.SetAllIndices(indices);
@@ -273,6 +338,11 @@ namespace ThanhDV.BugCatcher.UI
         private readonly float gap;
         private readonly bool drawCaps;
         private readonly float[] grid;
+        private readonly GraphMesh mesh;
+        private readonly int[] drawnBars;
+        private readonly int[] drawnCaps;
+        private Vector2 drawnSize;
+        private Color drawnGrid, drawnBarColor, drawnCapColor;
 
         public SpectrumBars(int bands, float minDb, float gap, bool drawCaps, float[] gridFractions)
         {
@@ -284,6 +354,9 @@ namespace ThanhDV.BugCatcher.UI
             this.gap = gap;
             this.drawCaps = drawCaps;
             grid = gridFractions;
+            mesh = new GraphMesh((grid?.Length ?? 0) + bands + (drawCaps ? bands : 0));
+            drawnBars = new int[bands];
+            drawnCaps = drawCaps ? new int[bands] : null;
         }
 
         public void Tick(AudioService audio, float deltaTime)
@@ -296,46 +369,67 @@ namespace ThanhDV.BugCatcher.UI
                 bars[i] = target > bars[i] ? target : Mathf.Max(target, bars[i] - BarFallPerSecond * deltaTime);
                 caps[i] = Mathf.Max(bars[i], caps[i] - CapFallPerSecond * deltaTime);
             }
-            MarkDirtyRepaint();
+            RepaintIfChanged();
+        }
+
+        private float BarTop(int i, float height) => height - Mathf.Max(2f, bars[i] * height);
+        private float CapY(int i, float height) => Mathf.Max(1f, height - caps[i] * height - 4f);
+
+        private void RepaintIfChanged()
+        {
+            Rect rect = contentRect;
+            if (!(rect.width > 0f && rect.height > 0f)) return;
+
+            if (drawnSize.x != rect.width || drawnSize.y != rect.height || !drawnGrid.Equals(GridColor) ||
+                !drawnBarColor.Equals(MainColor) || (drawCaps && !drawnCapColor.Equals(SecondaryColor)))
+            {
+                MarkDirtyRepaint();
+                return;
+            }
+
+            for (int i = 0; i < bars.Length; i++)
+            {
+                if (drawnBars[i] == HeightKey(BarTop(i, rect.height)) &&
+                    (!drawCaps || drawnCaps[i] == HeightKey(CapY(i, rect.height)))) continue;
+                MarkDirtyRepaint();
+                return;
+            }
         }
 
         protected override void Draw(MeshGenerationContext context)
         {
             Rect rect = contentRect;
-            if (rect.width <= 0f || rect.height <= 0f) return;
+            if (!(rect.width > 0f && rect.height > 0f)) return;
 
-            Painter2D painter = context.painter2D;
-            HorizontalLines(painter, rect, grid, GridColor);
+            drawnSize = rect.size;
+            drawnGrid = GridColor;
+            drawnBarColor = MainColor;
+            int quad = mesh.SetHorizontalGrid(rect, grid, drawnGrid);
 
             float width = rect.width / bars.Length;
             float barWidth = Mathf.Max(1f, width - gap);
-            painter.fillColor = MainColor;
-            painter.BeginPath();
+            Color32 barColor = drawnBarColor;
             for (int i = 0; i < bars.Length; i++)
             {
-                float h = Mathf.Max(2f, bars[i] * rect.height);
+                float top = BarTop(i, rect.height);
                 float x = i * width;
-                painter.MoveTo(new Vector2(x, rect.height));
-                painter.LineTo(new Vector2(x, rect.height - h));
-                painter.LineTo(new Vector2(x + barWidth, rect.height - h));
-                painter.LineTo(new Vector2(x + barWidth, rect.height));
-                painter.ClosePath();
+                drawnBars[i] = HeightKey(top);
+                mesh.SetQuad(quad++, x, top, x + barWidth, rect.height, barColor);
             }
-            painter.Fill();
 
-            if (!drawCaps) return;
-
-            painter.strokeColor = SecondaryColor;
-            painter.lineWidth = 1.5f;
-            painter.lineCap = LineCap.Butt;
-            painter.BeginPath();
-            for (int i = 0; i < caps.Length; i++)
+            if (drawCaps)
             {
-                float y = Mathf.Max(1f, rect.height - caps[i] * rect.height - 4f);
-                painter.MoveTo(new Vector2(i * width, y));
-                painter.LineTo(new Vector2(i * width + barWidth, y));
+                drawnCapColor = SecondaryColor;
+                Color32 capColor = drawnCapColor;
+                for (int i = 0; i < caps.Length; i++)
+                {
+                    float y = CapY(i, rect.height);
+                    float x = i * width;
+                    drawnCaps[i] = HeightKey(y);
+                    mesh.SetQuad(quad++, x, y - 0.75f, x + barWidth, y + 0.75f, capColor);
+                }
             }
-            painter.Stroke();
+            mesh.Draw(context);
         }
     }
 
