@@ -48,11 +48,16 @@ namespace ThanhDV.BugCatcher
         public const int CautionFps = 30;
         private const float GraphInterval = 0.1f;
         private const int GraphSamples = 60;
+        /// <summary>Matches the HUD and bubble text refresh, so every refresh shows a fresh window.</summary>
+        private const float FpsWindow = 0.25f;
 
         private readonly G_FpsMonitor fps;
         private readonly G_RamMonitor ram;
         private float graphTimer;
         private float worstFpsInInterval = float.MaxValue;
+        private int windowFrames;
+        private float windowTime;
+        private int windowFps;
 
         public PerformanceService(GameObject host)
         {
@@ -60,7 +65,11 @@ namespace ThanhDV.BugCatcher
             ram = host.AddComponent<G_RamMonitor>();
         }
 
-        public int CurrentFps => fps.CurrentFPS;
+        /// <summary>
+        /// Frames per second over the last <see cref="FpsWindow"/>. Graphy's CurrentFPS is a single frame, which
+        /// vsync snaps to 60/30/20/15; counting frames over a window gives the real rate (59, 47, 23…).
+        /// </summary>
+        public int CurrentFps => windowFps > 0 ? windowFps : fps.CurrentFPS;
         public int AverageFps => fps.AverageFPS;
         public int OnePercentFps => fps.OnePercentFPS;
         public int PointOnePercentFps => fps.Zero1PercentFps;
@@ -71,6 +80,7 @@ namespace ThanhDV.BugCatcher
         public int DeviceMemoryMb => SystemInfo.systemMemorySize;
 
         public SampleHistory FpsHistory { get; } = new SampleHistory(GraphSamples);
+
         public SampleHistory AllocatedHistory { get; } = new SampleHistory(GraphSamples);
         public SampleHistory ReservedHistory { get; } = new SampleHistory(GraphSamples);
         public SampleHistory MonoHistory { get; } = new SampleHistory(GraphSamples);
@@ -87,7 +97,18 @@ namespace ThanhDV.BugCatcher
 
         public void Tick(float unscaledDeltaTime)
         {
-            if (unscaledDeltaTime > 0f) worstFpsInInterval = Mathf.Min(worstFpsInInterval, 1f / unscaledDeltaTime);
+            if (unscaledDeltaTime > 0f)
+            {
+                worstFpsInInterval = Mathf.Min(worstFpsInInterval, 1f / unscaledDeltaTime);
+                windowFrames++;
+                windowTime += unscaledDeltaTime;
+                if (windowTime >= FpsWindow)
+                {
+                    windowFps = Mathf.RoundToInt(windowFrames / windowTime);
+                    windowFrames = 0;
+                    windowTime = 0f;
+                }
+            }
 
             graphTimer += unscaledDeltaTime;
             if (graphTimer < GraphInterval) return;
