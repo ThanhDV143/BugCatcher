@@ -284,10 +284,15 @@ namespace ThanhDV.BugCatcher.UI
 
         private void ApplySafeInsets()
         {
+            // The layer is the safe area (it clips): the panel never draws under a notch or the home indicator.
+            Insets safe = ui.SafeInsets;
+            Root.style.left = safe.Left;
+            Root.style.top = safe.Top;
+            Root.style.right = safe.Right;
+            Root.style.bottom = safe.Bottom;
             if (container == null) return;
 
-            Insets safe = ui.SafeInsets;
-            Vector2 size = ui.PanelSize;
+            float width = ui.PanelSize.x - safe.Left - safe.Right;
             switch (builtMode)
             {
                 case LayoutMode.Portrait:
@@ -295,30 +300,24 @@ namespace ThanhDV.BugCatcher.UI
                     break;
                 case LayoutMode.Landscape:
                     // Typing a command: as wide as the safe area (like the keyboard), so suggestions get a column beside the log.
-                    container.style.width = keyboardWide ? size.x - safe.Left : Mathf.Min(500f + safe.Right, size.x * 0.75f);
-                    container.style.paddingRight = safe.Right;
-                    container.Q(className: "rail").style.paddingBottom = safe.Bottom;
+                    container.style.width = keyboardWide ? width : Mathf.Min(500f, width * 0.75f);
                     break;
                 default:
-                    container.style.top = 24f + safe.Top;
-                    container.style.bottom = 24f + safe.Bottom;
-                    container.style.right = 24f + safe.Right;
-                    container.style.width = Mathf.Min(1040f, size.x - 48f - safe.Left - safe.Right);
+                    container.style.top = 24f;
+                    container.style.bottom = 24f;
+                    container.style.right = 24f;
+                    container.style.width = Mathf.Min(1040f, width - 48f);
                     break;
             }
-
-            // Footers and scrolling content clear the home indicator.
-            float bottom = builtMode == LayoutMode.Desktop ? 0f : safe.Bottom;
-            container.Query(className: "footer").ForEach(f => f.style.paddingBottom = Mathf.Max(12f, bottom));
-            container.Query(className: "pad-safe").ForEach(f => f.style.paddingBottom = Mathf.Max(16f, bottom));
         }
 
         private void ApplySheetHeight()
         {
             if (builtMode != LayoutMode.Portrait || container == null) return;
 
-            float full = ui.SafeInsets.Top + 5f;
-            float half = ui.PanelSize.y * HalfSheet;
+            // Relative to the safe-area layer; the half sheet keeps its on-screen position.
+            float full = 5f;
+            float half = ui.PanelSize.y * HalfSheet - ui.SafeInsets.Top;
             container.style.top = (BugCatcher.Settings.sheetHalf ? half : full) + sheetDragOffset;
         }
 

@@ -34,7 +34,7 @@ namespace ThanhDV.BugCatcher.UI
             var scroll = new ScrollView(ScrollViewMode.Vertical);
             scroll.AddToClassList("grow");
             scroll.verticalScrollerVisibility = mode == LayoutMode.Desktop ? ScrollerVisibility.Auto : ScrollerVisibility.Hidden;
-            var content = Div("tab-scroll pad-safe" + (mode == LayoutMode.Desktop ? " tab-narrow" : ""));
+            var content = Div("tab-scroll" + (mode == LayoutMode.Desktop ? " tab-narrow" : ""));
             scroll.Add(content);
             root.Add(scroll);
 

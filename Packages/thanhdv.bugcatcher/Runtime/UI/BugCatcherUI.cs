@@ -23,7 +23,8 @@ namespace ThanhDV.BugCatcher.UI
             Height = Screen.height,
             SafeArea = Screen.safeArea,
             Dpi = Screen.dpi,
-            Mobile = Application.isMobilePlatform
+            // The Device Simulator fakes UnityEngine.Screen but only UnityEngine.Device.Application; players get the real value.
+            Mobile = UnityEngine.Device.Application.isMobilePlatform
         };
 
         public bool Same(DisplayInfo other) =>

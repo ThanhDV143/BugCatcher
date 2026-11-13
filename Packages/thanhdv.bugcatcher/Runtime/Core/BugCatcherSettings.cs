@@ -75,7 +75,7 @@ namespace ThanhDV.BugCatcher
         public int activePreset = -1;
         public List<string> recentCommands = new List<string>();
         public string audioProvider = "";
-        public bool collapse = true;
+        public bool collapse;
         public bool showLog = true;
         public bool showWarning = true;
         public bool showError = true;

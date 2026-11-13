@@ -91,6 +91,8 @@
     right: 0;
     bottom: 0;
 }
+/* Inset to the safe area in code; clips the slide-in/out so nothing shows under a notch or the home indicator. */
+.panel-layer { overflow: hidden; }
 
 .grow { flex-grow: 1; flex-shrink: 1; min-width: 0; }
 .col { flex-direction: column; }
