@@ -23,12 +23,13 @@ namespace ThanhDV.BugCatcher
 
         public static bool IsOpen => host != null && host.Ui.IsPanelOpen;
 
-        /// <summary>
-        /// Replaces the default "Share" behaviour (copy text to the clipboard and keep the file).
-        /// Arguments: the text, and the path of the file it was also saved to.
-        /// Hook a native share plugin here.
-        /// </summary>
-        public static Action<string, string> ShareHandler;
+        // Share is disabled: no UI calls it since the Share buttons were removed. Kept for a later native share plugin.
+        // /// <summary>
+        // /// Replaces the default "Share" behaviour (copy text to the clipboard and keep the file).
+        // /// Arguments: the text, and the path of the file it was also saved to.
+        // /// Hook a native share plugin here.
+        // /// </summary>
+        // public static Action<string, string> ShareHandler;
 
         public static void Open() => host?.Ui.OpenPanel();
 
@@ -47,30 +48,31 @@ namespace ThanhDV.BugCatcher
             else pendingProviders.Add(provider);
         }
 
-        public static void Share(string text, string fileName)
-        {
-            string path = Path.Combine(Application.persistentDataPath, fileName);
-            try
-            {
-                File.WriteAllText(path, text);
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("[BugCatcher] Could not write " + path + ": " + e.Message);
-            }
-
-            if (ShareHandler != null)
-            {
-                ShareHandler(text, path);
-                return;
-            }
-
-            GUIUtility.systemCopyBuffer = text;
-            Debug.Log("[BugCatcher] Copied to clipboard and saved to " + path);
-#if UNITY_EDITOR
-            UnityEditor.EditorUtility.RevealInFinder(path);
-#endif
-        }
+        // Disabled with ShareHandler above.
+        // public static void Share(string text, string fileName)
+        // {
+        //     string path = Path.Combine(Application.persistentDataPath, fileName);
+        //     try
+        //     {
+        //         File.WriteAllText(path, text);
+        //     }
+        //     catch (Exception e)
+        //     {
+        //         Debug.LogWarning("[BugCatcher] Could not write " + path + ": " + e.Message);
+        //     }
+        //
+        //     if (ShareHandler != null)
+        //     {
+        //         ShareHandler(text, path);
+        //         return;
+        //     }
+        //
+        //     GUIUtility.systemCopyBuffer = text;
+        //     Debug.Log("[BugCatcher] Copied to clipboard and saved to " + path);
+// #if UNITY_EDITOR
+        //     UnityEditor.EditorUtility.RevealInFinder(path);
+// #endif
+        // }
 
         public static void CaptureScreenshot()
         {

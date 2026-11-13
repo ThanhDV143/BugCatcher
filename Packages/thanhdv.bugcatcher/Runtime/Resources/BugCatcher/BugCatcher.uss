@@ -840,26 +840,6 @@
 .aside-empty { flex-grow: 1; align-items: center; justify-content: center; padding: 24px; }
 .aside-empty > .ic { margin-bottom: 8px; }
 
-.popover {
-    position: absolute;
-    right: 8px;
-    top: 48px;
-    width: 220px;
-    background-color: var(--bg-panel);
-    border-width: 1px;
-    border-color: var(--border);
-    border-radius: 6px;
-    padding: 6px;
-}
-.menu-item {
-    min-height: 44px;
-    padding: 0 10px;
-    border-radius: 6px;
-    flex-direction: row;
-    align-items: center;
-}
-.menu-item > .ic { margin-right: 12px; }
-
 /* Command bar + suggestions */
 .cmd-area { flex-shrink: 0; }
 .cmd-bar { padding: 6px 12px; }
@@ -921,7 +901,6 @@
 
 /* Log detail */
 .detail { flex-grow: 1; flex-shrink: 1; min-height: 0; flex-direction: column; background-color: var(--bg-panel); }
-.detail-handle { height: 20px; }
 .detail-header {
     flex-direction: row;
     align-items: center;

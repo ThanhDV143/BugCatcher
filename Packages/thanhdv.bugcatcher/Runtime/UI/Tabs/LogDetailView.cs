@@ -6,9 +6,12 @@ using static ThanhDV.BugCatcher.UI.UIB;
 
 namespace ThanhDV.BugCatcher.UI
 {
-    /// <summary>Message, stack trace, copy and share. A full page on phones, the right-hand aside on desktop.</summary>
+    /// <summary>Message, stack trace and a copy button. A full page on phones, the right-hand aside on desktop.</summary>
     internal static class LogDetailView
     {
+        /// <summary>How long the button shows "Copied" after a tap.</summary>
+        private const long CopiedMs = 1500;
+
         private struct Frame
         {
             public string Method;
@@ -23,7 +26,6 @@ namespace ThanhDV.BugCatcher.UI
 
             if (!desktop)
             {
-                root.Add(Div("sheet-handle detail-handle", Div("handle-bar")));
                 root.Add(Div("detail-header",
                     Tap(Div("icon-btn", Icon("back")), onBack),
                     Text("Log detail", "fs-title w600 grow"),
@@ -90,14 +92,28 @@ namespace ThanhDV.BugCatcher.UI
             }
 
             string copyText = LogStore.TypeLabel(entry.Type) + ": " + entry.Message + "\n" + entry.StackTrace;
+            IconElement copyIcon = Icon("copy", desktop ? 18f : 20f);
+            Label copyLabel = Text("Copy", "fs-body w600");
+            IVisualElementScheduledItem revert = null;
             root.Add(Div("detail-footer footer",
-                Tap(Div("btn btn-raised grow", Icon("copy", desktop ? 18f : 20f), Text("Copy", "fs-body w500")), () =>
+                Tap(Div("btn btn-accent grow", copyIcon, copyLabel), () =>
                 {
                     GUIUtility.systemCopyBuffer = copyText;
-                }),
-                Tap(Div("btn btn-accent grow", Icon("share", desktop ? 18f : 20f), Text("Share", "fs-body w600")), () =>
-                {
-                    BugCatcher.Share(copyText, "BugCatcher_log_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt");
+                    // Confirm the copy for a moment; tapping again restarts the timer.
+                    copyIcon.Icon = "check";
+                    copyLabel.text = "Copied";
+                    if (revert == null)
+                    {
+                        revert = copyLabel.schedule.Execute(() =>
+                        {
+                            copyIcon.Icon = "copy";
+                            copyLabel.text = "Copy";
+                        }).StartingIn(CopiedMs);
+                    }
+                    else
+                    {
+                        revert.ExecuteLater(CopiedMs);
+                    }
                 })));
             return root;
         }

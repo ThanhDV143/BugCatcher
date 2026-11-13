@@ -33,7 +33,6 @@ namespace ThanhDV.BugCatcher.UI
         private VisualElement searchButton;
         private VisualElement searchRow;
         private TextField searchField;
-        private VisualElement moreMenu;
         private VisualElement aside;
         private VisualElement consoleRoot;
         private ScrollView side;
@@ -95,8 +94,6 @@ namespace ThanhDV.BugCatcher.UI
                 aside = null;
             }
 
-            moreMenu = BuildMoreMenu();
-            root.Add(moreMenu);
             dirty = true;
             return root;
         }
@@ -143,7 +140,8 @@ namespace ThanhDV.BugCatcher.UI
             collapseButton = Tap(Div("tb", Icon("group", 18f)), ToggleCollapse);
             bar.Add(searchButton);
             bar.Add(collapseButton);
-            bar.Add(Tap(Div("tb", Icon("more", 18f)), () => Show(moreMenu, moreMenu.resolvedStyle.display == DisplayStyle.None)));
+            bar.Add(Tap(Div("tb", Icon("clear", 18f)), () => BugCatcher.Logs.Clear()));
+            bar.Add(Tap(Div("tb", Icon("save", 18f)), SaveLog));
             return bar;
         }
 
@@ -183,28 +181,6 @@ namespace ThanhDV.BugCatcher.UI
             Show(searchRow, search.Length > 0);
             searchField.SetValueWithoutNotify(search);
             return searchRow;
-        }
-
-        private VisualElement BuildMoreMenu()
-        {
-            var menu = Div("popover more-menu");
-            menu.Add(Tap(Div("menu-item", Icon("clear", 20f, "c-secondary"), Text("Clear logs", "fs-body")), () =>
-            {
-                Show(menu, false);
-                BugCatcher.Logs.Clear();
-            }));
-            menu.Add(Tap(Div("menu-item", Icon("save", 20f, "c-secondary"), Text("Save log file", "fs-body")), () =>
-            {
-                Show(menu, false);
-                SaveLog();
-            }));
-            menu.Add(Tap(Div("menu-item", Icon("share", 20f, "c-secondary"), Text("Share log", "fs-body")), () =>
-            {
-                Show(menu, false);
-                BugCatcher.Share(BugCatcher.Logs.Export(), LogFileName());
-            }));
-            Show(menu, false);
-            return menu;
         }
 
         /// <summary>TextField has no placeholder in 2022.3; overlay a muted label while it is empty.</summary>
