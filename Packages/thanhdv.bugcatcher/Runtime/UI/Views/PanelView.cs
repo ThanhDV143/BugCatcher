@@ -35,7 +35,6 @@ namespace ThanhDV.BugCatcher.UI
 
         private readonly BugCatcherUI ui;
         private readonly IPanelTab[] tabs;
-        private readonly ConsoleTab console;
         private readonly VisualElement[] tabContent = new VisualElement[5];
         private readonly VisualElement[] navItems = new VisualElement[5];
         private VisualElement container;
@@ -47,8 +46,10 @@ namespace ThanhDV.BugCatcher.UI
         private float sheetDragOffset;
         private bool sheetDragging;
         private float keyboardLift;
-        private bool keyboardWide;
         private float keyboardHoldUntil;
+        /// <summary>System bars shown over the game at the sides (see ApplySystemBars), panel units.</summary>
+        private float barLeft;
+        private float barRight;
 
         public PanelView(BugCatcherUI ui)
         {
@@ -57,10 +58,9 @@ namespace ThanhDV.BugCatcher.UI
             Root.pickingMode = PickingMode.Ignore;
             Show(Root, false);
 
-            console = new ConsoleTab(ui, this);
             tabs = new IPanelTab[]
             {
-                console,
+                new ConsoleTab(ui, this),
                 new HudTab(ui),
                 new AudioTab(),
                 new SystemTab(),
@@ -112,6 +112,7 @@ namespace ThanhDV.BugCatcher.UI
             if (IsOpen && tab != CurrentTab) tabs[(int)CurrentTab].SetVisible(false);
             ClosePage();
             CurrentTab = tab;
+            if (builtMode == LayoutMode.Landscape) ApplySafeInsets();
             for (int i = 0; i < tabContent.Length; i++)
             {
                 Show(tabContent[i], i == (int)tab);
@@ -160,7 +161,10 @@ namespace ThanhDV.BugCatcher.UI
             if (!IsOpen) return;
 
             tabs[(int)CurrentTab].Tick(deltaTime);
-            if (builtMode != LayoutMode.Desktop) ApplyKeyboardInset();
+            if (builtMode == LayoutMode.Desktop) return;
+
+            ApplySystemBars();
+            ApplyKeyboardInset();
         }
 
         // --- Building -------------------------------------------------------------------
@@ -190,7 +194,6 @@ namespace ThanhDV.BugCatcher.UI
             // Edit in place: the native input strip Android/iOS add above the keyboard would cover the panel.
             container.Query<TextField>().ForEach(f => f.hideMobileInput = true);
             keyboardLift = 0f;
-            keyboardWide = false;
 
             ApplyGaps(container);
             if (wasOpen) container.AddToClassList("open");
@@ -228,7 +231,7 @@ namespace ThanhDV.BugCatcher.UI
         {
             container = Div("panel side");
             var rail = Div("rail");
-            rail.Add(Tap(Div("rail-tab", Icon("close")), ui.ClosePanel));
+            rail.Add(Tap(Div("rail-close", Icon("close")), ui.ClosePanel));
             rail.Add(Div("rail-divider"));
             for (int i = 0; i < 5; i++)
             {
@@ -292,15 +295,20 @@ namespace ThanhDV.BugCatcher.UI
             Root.style.bottom = safe.Bottom;
             if (container == null) return;
 
-            float width = ui.PanelSize.x - safe.Left - safe.Right;
+            // System bars beyond the safe area: margins, so the panel animates clear of them (see USS).
+            float marginLeft = Mathf.Max(0f, barLeft - safe.Left);
+            float marginRight = Mathf.Max(0f, barRight - safe.Right);
+            container.style.marginLeft = marginLeft;
+            container.style.marginRight = marginRight;
+
+            float width = ui.PanelSize.x - safe.Left - safe.Right - marginLeft - marginRight;
             switch (builtMode)
             {
                 case LayoutMode.Portrait:
                     ApplySheetHeight();
                     break;
                 case LayoutMode.Landscape:
-                    // Typing a command: as wide as the safe area (like the keyboard), so suggestions get a column beside the log.
-                    container.style.width = keyboardWide ? width : Mathf.Min(500f, width * 0.75f);
+                    container.style.width = CurrentTab == PanelTab.Console ? width : Mathf.Min(650f, width * 0.75f);
                     break;
                 default:
                     container.style.top = 24f;
@@ -335,26 +343,20 @@ namespace ThanhDV.BugCatcher.UI
             if (keyboardUp) keyboardHoldUntil = Time.unscaledTime + KeyboardHoldTime;
             else if (Time.unscaledTime < keyboardHoldUntil) lift = keyboardLift;
 
-            if (!Mathf.Approximately(lift, keyboardLift))
-            {
-                keyboardLift = lift;
-                container.style.marginBottom = lift;
-                if (lift > 0f) container.RegisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
-            }
+            if (Mathf.Approximately(lift, keyboardLift)) return;
 
-            bool wide = builtMode == LayoutMode.Landscape && lift > 0f && (console.CommandFocused || keyboardWide && !keyboardUp);
-            if (wide == keyboardWide) return;
-
-            keyboardWide = wide;
-            console.SetWide(wide);
-            ApplySafeInsets();
+            keyboardLift = lift;
+            container.style.marginBottom = lift;
+            if (lift > 0f) container.RegisterCallback<TransitionEndEvent>(OnKeyboardLayout);
         }
 
-        /// <summary>Once the panel has shrunk, brings a field inside a scroll view back into view.</summary>
-        private void OnKeyboardLayout(GeometryChangedEvent e)
+        /// <summary>Once the panel has finished shrinking (USS transition), brings a field inside a scroll view back into view.</summary>
+        private void OnKeyboardLayout(TransitionEndEvent e)
         {
+            if (e.target != e.currentTarget || !e.AffectsProperty("margin-bottom")) return;
+
             var target = (VisualElement)e.currentTarget;
-            target.UnregisterCallback<GeometryChangedEvent>(OnKeyboardLayout);
+            target.UnregisterCallback<TransitionEndEvent>(OnKeyboardLayout);
             // Next tick: the scroll view updates its scroll range in its own handler of this layout pass.
             target.schedule.Execute(() =>
             {
@@ -383,26 +385,46 @@ namespace ThanhDV.BugCatcher.UI
             float height = TouchScreenKeyboard.area.height;
 #if UNITY_ANDROID && !UNITY_EDITOR
             // Unity reports an empty area on some Android devices; measure the window's visible frame instead.
-            if (height <= 0f) height = AndroidKeyboardHeight();
+            if (height <= 0f) height = AndroidCovered().Bottom;
 #endif
             return height;
         }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-        private static float androidKeyboardHeight;
-        private static float androidKeyboardPolled = float.NegativeInfinity;
-
-        /// <summary>Polled at 10 Hz: each poll is several JNI calls.</summary>
-        private static float AndroidKeyboardHeight()
+        /// <summary>
+        /// Android: the immersive game's navigation bar shows (over the game) while the keyboard is up,
+        /// and the safe area never includes it; keeps the panel clear of it.
+        /// </summary>
+        private void ApplySystemBars()
         {
-            if (Time.unscaledTime - androidKeyboardPolled < 0.1f) return androidKeyboardHeight;
+            float left = 0f;
+            float right = 0f;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            Insets covered = AndroidCovered();
+            left = covered.Left / ui.Scale;
+            right = covered.Right / ui.Scale;
+#endif
+            if (Mathf.Approximately(left, barLeft) && Mathf.Approximately(right, barRight)) return;
 
-            androidKeyboardPolled = Time.unscaledTime;
-            androidKeyboardHeight = MeasureAndroidKeyboard();
-            return androidKeyboardHeight;
+            barLeft = left;
+            barRight = right;
+            ApplySafeInsets();
         }
 
-        private static float MeasureAndroidKeyboard()
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private static Insets androidCovered;
+        private static float androidPolled = float.NegativeInfinity;
+
+        /// <summary>Screen pixels each edge loses to the keyboard or system bars. Polled at 10 Hz: each poll is several JNI calls.</summary>
+        private static Insets AndroidCovered()
+        {
+            if (Time.unscaledTime - androidPolled < 0.1f) return androidCovered;
+
+            androidPolled = Time.unscaledTime;
+            androidCovered = MeasureAndroidCovered();
+            return androidCovered;
+        }
+
+        private static Insets MeasureAndroidCovered()
         {
             using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
             using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
@@ -411,10 +433,19 @@ namespace ThanhDV.BugCatcher.UI
             using (var visible = new AndroidJavaObject("android.graphics.Rect"))
             {
                 decor.Call("getWindowVisibleDisplayFrame", visible);
-                int decorHeight = decor.Call<int>("getHeight");
-                if (decorHeight <= 0) return 0f;
+                int width = decor.Call<int>("getWidth");
+                int height = decor.Call<int>("getHeight");
+                if (width <= 0 || height <= 0) return default;
+
                 // Screen may render below native resolution.
-                return Mathf.Max(0, decorHeight - visible.Get<int>("bottom")) * (float)Screen.height / decorHeight;
+                float sx = (float)Screen.width / width;
+                float sy = (float)Screen.height / height;
+                return new Insets
+                {
+                    Left = Mathf.Max(0, visible.Get<int>("left")) * sx,
+                    Right = Mathf.Max(0, width - visible.Get<int>("right")) * sx,
+                    Bottom = Mathf.Max(0, height - visible.Get<int>("bottom")) * sy
+                };
             }
         }
 #endif

@@ -8,14 +8,16 @@ namespace ThanhDV.BugCatcher.UI
 {
     /// <summary>
     /// Command input with suggestions: matches (tap to fill), recent commands, quick commands (one tap runs).
-    /// Phones show suggestions as a block above the input; desktop shows a popup with keyboard navigation.
+    /// Portrait shows suggestions above the input; landscape uses a column and desktop uses a popup.
     /// </summary>
     internal class CommandBar
     {
         private const int MobileMatches = 3;
         private const int DesktopMatches = 6;
+        private const int LandscapeMatches = 20;
         private const int MobileRecent = 2;
         private const int MaxQuick = 8;
+        private const int LandscapeMaxQuick = 32;
 
         private readonly BugCatcherUI ui;
         private readonly Action<bool> onShown;
@@ -25,7 +27,6 @@ namespace ThanhDV.BugCatcher.UI
         private LayoutMode mode;
         private TextField field;
         private VisualElement inputBox;
-        private VisualElement area;
         private VisualElement suggestions;
         private VisualElement historyButton;
         private bool focused;
@@ -40,26 +41,16 @@ namespace ThanhDV.BugCatcher.UI
             this.onShown = onShown;
         }
 
-        /// <summary>True while the command field has keyboard focus.</summary>
-        public bool Focused => focused;
-
-        /// <summary>The suggestions block; the console may move it to a column of its own.</summary>
-        public VisualElement Suggestions => suggestions;
-
-        /// <summary>Puts the suggestions block back above the input row.</summary>
-        public void RestoreSuggestions() => area.Insert(0, suggestions);
-
-        /// <summary>Returns the suggestions block (phones) and input row; both go at the bottom of the console.</summary>
-        public VisualElement Build(LayoutMode layoutMode)
+        public VisualElement Build(LayoutMode layoutMode, ScrollView suggestionsColumn)
         {
             mode = layoutMode;
             bool desktop = mode == LayoutMode.Desktop;
-            area = Div("cmd-area");
+            var area = Div("cmd-area");
 
             suggestions = Div(desktop ? "sugg-pop" : "sugg");
             suggestions.pickingMode = PickingMode.Position;
             Show(suggestions, false);
-            area.Add(suggestions);
+            (suggestionsColumn?.contentContainer ?? area).Add(suggestions);
 
             field = new TextField();
             field.AddToClassList("bare-field");
@@ -76,10 +67,15 @@ namespace ThanhDV.BugCatcher.UI
             {
                 focused = false;
                 SetClass(inputBox, "focused", false);
-                // Let a tap on a suggestion land before the list disappears.
-                field.schedule.Execute(Render).StartingIn(180);
+                if (mode != LayoutMode.Landscape)
+                {
+                    // Let a tap on a suggestion land before the list disappears.
+                    field.schedule.Execute(Render).StartingIn(180);
+                }
             });
             field.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
+            VisualElement suggestionsSurface = suggestionsColumn != null ? (VisualElement)suggestionsColumn : suggestions;
+            suggestionsSurface.RegisterCallback<PointerDownEvent>(KeepCommandFocus, TrickleDown.TrickleDown);
 
             var footer = Div("cmd-bar footer");
             inputBox = Div("field cmd-box grow", Text(">", "mono w600 c-accent cmd-prompt"), ConsoleTab.WithPlaceholder(field, "Enter command"));
@@ -99,9 +95,22 @@ namespace ThanhDV.BugCatcher.UI
             }
 
             area.Add(footer);
+            focused = false;
             renderedFor = null;
             shown = false;
+            if (suggestionsColumn != null) Render();
             return area;
+        }
+
+        private void KeepCommandFocus(PointerDownEvent evt)
+        {
+            if (!focused) return;
+
+#if UNITY_6000_0_OR_NEWER
+            field.focusController.IgnoreEvent(evt);
+#else
+            evt.PreventDefault();
+#endif
         }
 
         private void ToggleHistory()
@@ -123,6 +132,7 @@ namespace ThanhDV.BugCatcher.UI
             SetClass(historyButton, "on", false);
             renderedFor = null;
             UpdatePlaceholder();
+            if (mode == LayoutMode.Landscape) field.Blur();
             Render();
             if (mode == LayoutMode.Desktop) field.schedule.Execute(() => field.Focus());
         }
@@ -135,7 +145,20 @@ namespace ThanhDV.BugCatcher.UI
 
         private void Fill(string command)
         {
-            field.value = command + " ";
+            string text = command + " ";
+            field.value = text;
+            if (focused)
+            {
+                TouchScreenKeyboard keyboard = field.touchScreenKeyboard;
+                if (keyboard != null && keyboard.active)
+                {
+                    if (keyboard.text != text) keyboard.text = text;
+                    if (keyboard.canSetSelection) keyboard.selection = new RangeInt(text.Length, 0);
+                }
+                field.SelectRange(text.Length, text.Length);
+                return;
+            }
+
             field.schedule.Execute(() =>
             {
                 field.Focus();
@@ -186,7 +209,7 @@ namespace ThanhDV.BugCatcher.UI
         private void Render()
         {
             string text = field.value ?? string.Empty;
-            bool show = historyOnly || focused;
+            bool show = mode == LayoutMode.Landscape || historyOnly || focused;
             if (shown != show)
             {
                 shown = show;
@@ -205,7 +228,9 @@ namespace ThanhDV.BugCatcher.UI
 
             if (!historyOnly)
             {
-                BugCatcher.Commands.Suggest(text, matches, desktop ? DesktopMatches : MobileMatches);
+                int matchLimit = desktop ? DesktopMatches : MobileMatches;
+                if (mode == LayoutMode.Landscape) matchLimit = LandscapeMatches;
+                BugCatcher.Commands.Suggest(text, matches, matchLimit);
                 if (matches.Count > 0)
                 {
                     if (!desktop) suggestions.Add(Div("sugg-head", Text("MATCHES", "lbl"), Text("tap to fill", "mono fs-caption c-muted")));
@@ -251,7 +276,7 @@ namespace ThanhDV.BugCatcher.UI
 
             if (historyOnly) return;
 
-            BugCatcher.Commands.QuickCommands(quick, MaxQuick);
+            BugCatcher.Commands.QuickCommands(quick, mode == LayoutMode.Landscape ? LandscapeMaxQuick : MaxQuick);
             if (quick.Count == 0) return;
 
             suggestions.Add(Div("sugg-head sugg-section", Text("QUICK COMMANDS", "lbl"), Text("no parameters · one tap runs", "mono fs-caption c-muted")));
@@ -259,7 +284,15 @@ namespace ThanhDV.BugCatcher.UI
             foreach (string command in quick)
             {
                 string c = command;
-                chips.Add(Tap(Div("quick-chip", Text(c, "mono fs-chip")), () => BugCatcher.Commands.Execute(c)));
+                chips.Add(Tap(Div("quick-chip", Text(c, "mono fs-chip")), () =>
+                {
+                    BugCatcher.Commands.Execute(c);
+                    if (mode == LayoutMode.Landscape)
+                    {
+                        renderedFor = null;
+                        Render();
+                    }
+                }));
             }
             suggestions.Add(chips);
         }

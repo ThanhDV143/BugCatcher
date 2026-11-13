@@ -181,10 +181,15 @@
     --unity-cursor-color: var(--accent);
     --unity-selection-color: rgba(90, 176, 255, 0.35);
     -unity-text-align: middle-left;
+    /* The empty theme leaves this visible: long text drew past the box instead of scrolling inside it. */
+    overflow: hidden;
 }
+/* One centred line that scrolls sideways; the empty theme wraps it, pushing the caret below the box. */
+.bare-field .unity-text-element { white-space: nowrap; }
 /* Fill the box height: Unity 6 lays the field out taller than its input, which pushed the text below centre. */
-.placeholder-wrap { justify-content: center; position: relative; flex-grow: 1; min-width: 0; align-self: stretch; }
-.placeholder { position: absolute; left: 0; -unity-text-align: middle-left; }
+/* Basis 0: the box fills the free space whatever the text length, so long text never squeezes buttons beside it. */
+.placeholder-wrap { justify-content: center; position: relative; flex-grow: 1; flex-basis: 0; min-width: 0; align-self: stretch; overflow: hidden; }
+.placeholder { position: absolute; left: 0; -unity-text-align: middle-left; white-space: nowrap; }
 
 .field {
     height: 44px;
@@ -594,6 +599,8 @@
     transition-duration: 0.2s;
     transition-timing-function: ease-out-cubic;
 }
+/* Phones: the keyboard (margin-bottom) and system bars (side margins) resize the panel smoothly. */
+.layout-mobile .panel { transition-property: translate, opacity, scale, margin-bottom, margin-left, margin-right, width; }
 .panel.dragging { transition-duration: 0s; }
 
 .sheet {
@@ -671,7 +678,14 @@
     flex-shrink: 0;
     border-right-width: 1px;
     border-right-color: var(--divider);
-    padding-top: 4px;
+}
+/* Same height as the console toolbar, so the divider below lines up with its bottom border. */
+.rail-close {
+    height: 48px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
 }
 .rail-tab {
     width: 56px;
@@ -687,7 +701,7 @@
     border-left-color: var(--accent);
     padding-right: 2px;
 }
-.rail-divider { height: 1px; background-color: var(--divider); margin: 2px 10px; }
+.rail-divider { height: 1px; background-color: var(--divider); margin: 0 10px 2px 10px; }
 /* Too short for labelled tabs (e.g. keyboard open): icons only, tabs share the height. */
 .rail.compact .rail-tab { height: auto; flex-grow: 1; flex-shrink: 1; min-height: 28px; max-height: 44px; }
 .rail.compact .rail-tab > Label { display: none; }
@@ -749,21 +763,19 @@
 /* ---------- Console ---------- */
 
 .console { flex-grow: 1; flex-shrink: 1; min-height: 0; flex-direction: column; }
-.console-desktop { flex-direction: row; }
+.console-desktop, .console-landscape { flex-direction: row; }
 .console-main { flex-grow: 1; flex-shrink: 1; min-height: 0; min-width: 0; flex-direction: column; }
 .console-desktop .console-main { border-right-width: 1px; border-right-color: var(--divider); }
 .console-aside { width: 380px; flex-shrink: 0; background-color: var(--bg-panel); }
-/* Landscape, typing a command: rail | suggestions | log + input */
-.console-wide { flex-direction: row; }
 .console-side {
-    display: none;
-    width: 320px;
+    width: 38%;
+    max-width: 380px;
+    min-height: 0;
     flex-shrink: 0;
     border-right-width: 1px;
     border-right-color: var(--divider);
     background-color: var(--bg-surface);
 }
-.console-wide .console-side { display: flex; }
 .console-side .sugg { border-top-width: 0; }
 
 .console-toolbar {
