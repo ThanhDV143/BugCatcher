@@ -209,7 +209,7 @@ namespace ThanhDV.BugCatcher.UI
                 if (matches.Count > 0)
                 {
                     if (!desktop) suggestions.Add(Div("sugg-head", Text("MATCHES", "lbl"), Text("tap to fill", "mono fs-caption c-muted")));
-                    string typed = FirstWord(text);
+                    string typed = CommandService.FirstWord(text);
                     for (int i = 0; i < matches.Count; i++)
                     {
                         CommandInfo info = matches[i];
@@ -282,22 +282,23 @@ namespace ThanhDV.BugCatcher.UI
 
         private static VisualElement CommandName(CommandInfo info, string typed, string size)
         {
-            int prefix = Mathf.Min(typed.Length, info.Name.Length);
+            int match = CommandService.MatchIndex(info.Name, typed);
             var line = Div("cmd-name");
-            line.Add(Text(info.Name.Substring(0, prefix), "mono w600 c-accent " + size));
-            line.Add(Text(info.Name.Substring(prefix), "mono " + size));
-            if (info.Parameters.Length > 0) line.Add(Text(" " + info.Parameters, "mono c-muted " + size));
+            if (match > 0) line.Add(Text(info.Name.Substring(0, match), "mono " + size));
+            line.Add(Text(info.Name.Substring(match, typed.Length), "mono w600 c-accent " + size));
+            line.Add(Text(info.Name.Substring(match + typed.Length), "mono " + size));
+            if (info.Parameters.Length > 0)
+            {
+                // Literal "<name>": rich text would read it as a tag (and "<a>" throws inside Unity's text handle).
+                Label parameters = Text(" " + info.Parameters, "mono c-muted " + size);
+                parameters.enableRichText = false;
+                line.Add(parameters);
+            }
             return line;
         }
 
         private VisualElement RecentRow(string command) =>
             Tap(Div("sug sug-recent", Icon("history", 16f, "c-muted"), Text(command, "mono fs-body")), () => Fill(command.Trim()));
 
-        private static string FirstWord(string input)
-        {
-            input = input.TrimStart();
-            int space = input.IndexOf(' ');
-            return space < 0 ? input : input.Substring(0, space);
-        }
     }
 }

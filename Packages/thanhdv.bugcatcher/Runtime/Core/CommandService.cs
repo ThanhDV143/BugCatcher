@@ -47,17 +47,17 @@ namespace ThanhDV.BugCatcher
             DebugLogConsole.ExecuteCommand(command);
         }
 
-        /// <summary>Commands whose name starts with the first word of <paramref name="input"/>, one row per name.</summary>
+        /// <summary>Matches the first word of <paramref name="input"/> against command names, one row per name.</summary>
         public void Suggest(string input, List<CommandInfo> output, int max)
         {
             output.Clear();
-            string prefix = FirstWord(input);
-            if (prefix.Length == 0) return;
+            string query = FirstWord(input);
+            if (query.Length == 0) return;
 
             string lastName = null;
             foreach (ConsoleMethodInfo method in DebugLogConsole.GetAllCommands())
             {
-                if (!method.command.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (MatchIndex(method.command, query) < 0) continue;
                 if (string.Equals(method.command, lastName, StringComparison.OrdinalIgnoreCase))
                 {
                     // Overloads: keep the one with the most parameters.
@@ -90,7 +90,13 @@ namespace ThanhDV.BugCatcher
             }
         }
 
-        private static string FirstWord(string input)
+        internal static int MatchIndex(string name, string query)
+        {
+            int index = name.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+            return query.Length == 1 && index != 0 ? -1 : index;
+        }
+
+        internal static string FirstWord(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
 
