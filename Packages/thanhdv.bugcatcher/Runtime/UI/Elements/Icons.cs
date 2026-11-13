@@ -17,7 +17,7 @@ namespace ThanhDV.BugCatcher.UI
             { "warning", "M12 3.5 2.5 20h19L12 3.5ZM12 10v4.5M12 17.5h.01" },
             { "error", "M3 12" + Circle + "M9 9l6 6M15 9l-6 6" },
             { "console", "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM7 9l3 3-3 3M12 15h5" },
-            { "hud", "M4 18a8 8 0 1 1 16 0M12 18l4-6" },
+            { "hud", "M3 12h4l3-7 4 14 3-7h4" },
             { "audio", "M3 12h1M7 8v8M11 5v14M15 9v6M19 11v2" },
             { "system", "M8 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2ZM10 10h4v4h-4zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" },
             { "settings", "M4 7h10M18 7h2M4 17h4M12 17h8M14 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M8 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0" },
