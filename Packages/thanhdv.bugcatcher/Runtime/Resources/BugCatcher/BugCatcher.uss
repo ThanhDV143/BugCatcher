@@ -716,9 +716,10 @@
     border-bottom-color: var(--divider);
     flex-shrink: 0;
 }
-.brand { flex-direction: row; align-items: center; margin-right: 16px; }
+.window-header Label { white-space: nowrap; }
+.brand { flex-direction: row; align-items: center; margin-right: 16px; flex-shrink: 0; }
 .brand > .ic { margin-right: 8px; }
-.dtabs { flex-direction: row; flex-grow: 1; }
+.dtabs { flex-direction: row; flex-grow: 1; flex-shrink: 1; min-width: 0; overflow: hidden; }
 .dtab {
     height: 40px;
     padding: 0 14px;
@@ -726,14 +727,22 @@
     border-radius: 4px;
     flex-direction: row;
     align-items: center;
+    flex-shrink: 0;
     color: var(--text-secondary);
 }
 .dtab > .ic { margin-right: 8px; }
 .dtab.active { background-color: var(--bg-raised); color: var(--text-primary); }
 .dtab.active > .ic { color: var(--accent); }
-.close-hint { flex-direction: row; align-items: center; margin-right: 16px; }
+.close-hint { flex-direction: row; align-items: center; margin-right: 16px; flex-shrink: 0; }
 .hint-text { margin-left: 4px; }
-.close-btn-sm { width: 40px; height: 40px; border-radius: 4px; }
+.close-btn-sm { width: 40px; height: 40px; border-radius: 4px; flex-shrink: 0; }
+/* Narrow window (see PanelView.FitHeader): the close hint goes first, then the brand name, then the tab labels. */
+.window-header.no-hint .close-hint { display: none; }
+.window-header.no-brand .brand > Label { display: none; }
+.window-header.no-brand .brand > .ic { margin-right: 0; }
+.window-header.icon-tabs .dtab { padding: 0 11px; }
+.window-header.icon-tabs .dtab > Label { display: none; }
+.window-header.icon-tabs .dtab > .ic { margin-right: 0; }
 
 /* Footers */
 .footer {
@@ -786,13 +795,31 @@
     border-bottom-color: var(--divider);
     flex-shrink: 0;
 }
-.desktop-toolbar { padding: 12px 16px 4px 16px; flex-wrap: wrap; }
-.desktop-toolbar > * { margin-right: 8px; margin-bottom: 8px; }
+.desktop-toolbar { padding: 12px 16px 4px 16px; }
+.desktop-toolbar > * { margin-right: 8px; margin-bottom: 8px; flex-shrink: 0; }
 .search-box { color: var(--text-muted); }
 .search-box > .ic { margin-right: 8px; }
-.desktop-toolbar .search-box { height: 40px; min-width: 200px; flex-grow: 1; }
+.desktop-toolbar .search-box { height: 40px; min-width: 200px; flex-grow: 1; flex-shrink: 1; }
 .search-row { padding: 6px 12px; border-bottom-width: 1px; border-bottom-color: var(--divider); flex-shrink: 0; }
 .vdivider { width: 1px; height: 24px; background-color: var(--divider); align-self: center; }
+.desktop-toolbar > .chip-group { flex-direction: row; align-items: center; margin-right: 0; }
+.chip-group > .chip { margin-right: 8px; }
+/* One row (ConsoleTab toolbarFit): chip names go first, then the spacing tightens, then the search folds to its icon. */
+.desktop-toolbar.no-names .chip-name { display: none; }
+.desktop-toolbar.tight > * { margin-right: 4px; }
+.desktop-toolbar.tight .chip-group > .chip { margin-right: 4px; }
+.desktop-toolbar.tight .chip-lg { padding: 0 6px 0 10px; }
+.desktop-toolbar.tight .search-box { min-width: 120px; }
+.desktop-toolbar.tight .vdivider { display: none; }
+.desktop-toolbar.tight .tb { width: 34px; }
+.desktop-toolbar.search-icon .search-box { min-width: 40px; width: 40px; flex-grow: 0; padding: 0; justify-content: center; }
+.desktop-toolbar.search-icon .search-box > .ic { margin-right: 0; }
+.desktop-toolbar.search-icon .search-box > .placeholder-wrap { display: none; }
+/* Folded search opened: it takes the chips' place until it is left empty. */
+.desktop-toolbar.search-icon.searching .search-box { width: auto; flex-grow: 1; padding: 0 12px; justify-content: flex-start; }
+.desktop-toolbar.search-icon.searching .search-box > .ic { margin-right: 8px; }
+.desktop-toolbar.search-icon.searching .search-box > .placeholder-wrap { display: flex; }
+.desktop-toolbar.search-icon.searching .chip-group { display: none; }
 
 /* Filter chips: on = raised fill + coloured icon; off = outline, muted */
 .chip {

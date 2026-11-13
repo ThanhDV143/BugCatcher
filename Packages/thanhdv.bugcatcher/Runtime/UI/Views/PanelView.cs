@@ -38,6 +38,8 @@ namespace ThanhDV.BugCatcher.UI
         private readonly VisualElement[] tabContent = new VisualElement[5];
         private readonly VisualElement[] navItems = new VisualElement[5];
         private VisualElement container;
+        /// <summary>Desktop window header; null in the phone layouts.</summary>
+        private StepFit headerFit;
         private VisualElement body;
         private VisualElement page;
         private LayoutMode builtMode = (LayoutMode)(-1);
@@ -143,8 +145,13 @@ namespace ThanhDV.BugCatcher.UI
         {
             if (container != null)
             {
-                container.EnableInClassList("text-small", BugCatcher.Settings.textSize == TextSize.Small);
-                container.EnableInClassList("text-large", BugCatcher.Settings.textSize == TextSize.Large);
+                bool small = BugCatcher.Settings.textSize == TextSize.Small;
+                bool large = BugCatcher.Settings.textSize == TextSize.Large;
+                bool resized = container.ClassListContains("text-small") != small || container.ClassListContains("text-large") != large;
+                container.EnableInClassList("text-small", small);
+                container.EnableInClassList("text-large", large);
+                // The header's step widths were measured at the old text size.
+                if (resized) headerFit?.Reset();
                 ApplySheetHeight();
             }
             foreach (IPanelTab tab in tabs) tab.ApplySettings();
@@ -177,6 +184,7 @@ namespace ThanhDV.BugCatcher.UI
             builtMode = ui.Mode;
             Root.Clear();
             page = null;
+            headerFit = null;
 
             switch (builtMode)
             {
@@ -274,6 +282,19 @@ namespace ThanhDV.BugCatcher.UI
             header.Add(nav);
             header.Add(Div("close-hint", Keycap(), Keycap(), Keycap(), Text("to close", "fs-caption c-muted hint-text")));
             header.Add(Tap(Div("icon-btn close-btn-sm", Icon("close")), ui.ClosePanel));
+            // Narrow window: the close hint goes first, then the brand name, then the tab labels.
+            headerFit = new StepFit(header, new[] { "no-hint", "no-brand", "icon-tabs" }, () =>
+            {
+                float needed = 0f;
+                foreach (VisualElement child in header.Children())
+                {
+                    if (child.resolvedStyle.display == DisplayStyle.None) continue;
+                    // The tab strip stretches and clips; its tabs give its natural width.
+                    float width = child == nav ? StepFit.OuterWidth(nav.Children()) : child.layout.width;
+                    needed += width + child.resolvedStyle.marginLeft + child.resolvedStyle.marginRight;
+                }
+                return needed;
+            });
             container.Add(header);
 
             body = Div("panel-body");

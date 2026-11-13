@@ -19,6 +19,8 @@ namespace ThanhDV.BugCatcher.UI
     {
         private const float RefreshInterval = 0.1f;
         private const int MaxMessageChars = 300;
+        /// <summary>Desktop console narrower than this (list + 380 aside): no aside, a log opens as a page as on phones.</summary>
+        private const float MinSplitWidth = 760f;
         private static readonly string[] kindNames = { "Log", "Warning", "Error" };
 
         private readonly BugCatcherUI ui;
@@ -34,6 +36,10 @@ namespace ThanhDV.BugCatcher.UI
         private VisualElement searchRow;
         private TextField searchField;
         private VisualElement aside;
+        /// <summary>Keeps the desktop toolbar on one row; null on phones.</summary>
+        private StepFit toolbarFit;
+        private TextSize fitTextSize;
+        private bool narrow;
         private string search = string.Empty;
         private LogEntry selected;
         private LogEntry asideEntry;
@@ -71,17 +77,21 @@ namespace ThanhDV.BugCatcher.UI
 
             var main = Div("console-main");
             root.Add(main);
+            toolbarFit = null;
+            fitTextSize = Settings.textSize;
 
             main.Add(desktop ? BuildDesktopToolbar() : BuildMobileToolbar());
             if (!desktop) main.Add(BuildSearchRow());
             main.Add(BuildList());
             main.Add(commandBar.Build(mode, suggestionsColumn));
 
+            narrow = false;
             if (desktop)
             {
                 aside = Div("console-aside");
                 root.Add(aside);
                 ShowDetailInAside();
+                root.RegisterCallback<GeometryChangedEvent>(_ => FitWidth(root));
             }
             else
             {
@@ -110,6 +120,12 @@ namespace ThanhDV.BugCatcher.UI
 
             for (int i = 0; i < 3; i++) SetClass(chips[i], "on", FilterOn((LogKind)i));
             SetClass(collapseButton, "on", Settings.collapse);
+            if (Settings.textSize != fitTextSize)
+            {
+                // The toolbar's step widths were measured at the old text size.
+                fitTextSize = Settings.textSize;
+                toolbarFit?.Reset();
+            }
             dirty = true;
         }
 
@@ -153,22 +169,55 @@ namespace ThanhDV.BugCatcher.UI
             searchField.AddToClassList("grow");
             Fonts.Apply(searchField);
             searchField.RegisterValueChangedCallback(e => SetSearch(e.newValue));
-            bar.Add(Div("field search-box", Icon("search", 18f, "c-muted"), WithPlaceholder(searchField, "Search logs   Ctrl F")));
+            var searchBox = Div("field search-box", Icon("search", 18f, "c-muted"), WithPlaceholder(searchField, "Search logs   Ctrl F"));
+            bar.Add(searchBox);
 
+            var chipGroup = Div("chip-group");
             for (int i = 0; i < 3; i++)
             {
                 var kind = (LogKind)i;
                 chipCounts[i] = Text("0", "mono fs-body c-secondary");
-                chips[i] = Tap(Div("chip chip-lg", Icon(Icons.ForKind(kind), 16f, KindColor(kind)), Text(kindNames[i], "fs-body w500"), chipCounts[i]), () => ToggleFilter(kind));
-                bar.Add(chips[i]);
+                chips[i] = Tap(Div("chip chip-lg", Icon(Icons.ForKind(kind), 16f, KindColor(kind)), Text(kindNames[i], "fs-body w500 chip-name"), chipCounts[i]), () => ToggleFilter(kind));
+                chipGroup.Add(chips[i]);
             }
+            bar.Add(chipGroup);
             bar.Add(Div("vdivider"));
             collapseButton = Tap(Div("tb", Icon("group")), ToggleCollapse);
             bar.Add(collapseButton);
             bar.Add(Tap(Div("tb", Icon("clear")), () => BugCatcher.Logs.Clear()));
             bar.Add(Tap(Div("tb", Icon("save")), SaveLog));
+
+            // One row: drops the chip names, then tightens spacing, then folds the search box to its icon.
+            toolbarFit = new StepFit(bar, new[] { "no-names", "tight", "search-icon" }, () =>
+            {
+                if (IsSearchOpen(bar)) return -1f; // The chips are hidden while the folded search is open.
+                float needed = 0f;
+                foreach (VisualElement child in bar.Children())
+                {
+                    if (child.resolvedStyle.display == DisplayStyle.None) continue;
+                    // The search box stretches; its minimum is what it needs.
+                    float width = child == searchBox ? child.resolvedStyle.minWidth.value : child.layout.width;
+                    needed += width + child.resolvedStyle.marginLeft + child.resolvedStyle.marginRight;
+                }
+                return needed;
+            });
+            toolbarFit.Watch(chipGroup); // Counts widen the chips without resizing the bar.
+
+            // Folded search: a tap opens it over the chips; it folds again when left empty.
+            searchBox.RegisterCallback<PointerDownEvent>(_ =>
+            {
+                if (!bar.ClassListContains("search-icon") || IsSearchOpen(bar)) return;
+                SetClass(bar, "searching", true);
+                searchField.schedule.Execute(() => searchField.Focus());
+            });
+            searchField.RegisterCallback<FocusOutEvent>(_ =>
+            {
+                if (search.Length == 0) SetClass(bar, "searching", false);
+            });
             return bar;
         }
+
+        private static bool IsSearchOpen(VisualElement bar) => bar.ClassListContains("search-icon") && bar.ClassListContains("searching");
 
         private VisualElement BuildSearchRow()
         {
@@ -359,7 +408,7 @@ namespace ThanhDV.BugCatcher.UI
 
             list.RefreshItems();
             ScheduleScrollToLatest();
-            if (aside != null && (asideEntry != selected || (selected != null && selected.Count != asideCount))) ShowDetailInAside();
+            if (aside != null && !narrow && (asideEntry != selected || (selected != null && selected.Count != asideCount))) ShowDetailInAside();
         }
 
         private bool Passes(LogEntry entry)
@@ -372,18 +421,39 @@ namespace ThanhDV.BugCatcher.UI
         {
             selected = entry;
             list.RefreshItems();
-            if (mode == LayoutMode.Desktop)
+            if (mode == LayoutMode.Desktop && !narrow)
             {
                 ShowDetailInAside();
                 return;
             }
 
-            panel.ShowPage(LogDetailView.Build(entry, mode, onBack: () =>
+            // A narrow desktop window gets the phone page, which has its own back and close buttons.
+            LayoutMode pageMode = mode == LayoutMode.Desktop ? LayoutMode.Landscape : mode;
+            panel.ShowPage(LogDetailView.Build(entry, pageMode, onBack: () =>
             {
                 panel.ClosePage();
                 selected = null;
                 list.RefreshItems();
             }, onClose: ui.ClosePanel));
+        }
+
+        /// <summary>Desktop: drops the aside when the window is too narrow for it and the log list side by side.</summary>
+        private void FitWidth(VisualElement root)
+        {
+            float width = root.layout.width;
+            if (float.IsNaN(width) || width <= 0f) return; // Hidden tab or panel.
+
+            bool isNarrow = width < MinSplitWidth;
+            if (isNarrow == narrow) return;
+
+            narrow = isNarrow;
+            Show(aside, !narrow);
+            if (!narrow)
+            {
+                // Widened while a log was open as a page: show it in the aside instead.
+                panel.ClosePage();
+                ShowDetailInAside();
+            }
         }
 
         private void ShowDetailInAside()
