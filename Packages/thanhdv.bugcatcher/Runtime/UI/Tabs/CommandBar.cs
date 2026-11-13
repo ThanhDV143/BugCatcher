@@ -21,6 +21,7 @@ namespace ThanhDV.BugCatcher.UI
 
         private readonly BugCatcherUI ui;
         private readonly Action<bool> onShown;
+        private readonly Action onCommandExecuted;
         private readonly List<CommandInfo> matches = new List<CommandInfo>();
         private readonly List<string> quick = new List<string>();
         private readonly List<VisualElement> matchRows = new List<VisualElement>();
@@ -35,10 +36,11 @@ namespace ThanhDV.BugCatcher.UI
         private int highlighted;
         private string renderedFor;
 
-        public CommandBar(BugCatcherUI ui, Action<bool> onShown)
+        public CommandBar(BugCatcherUI ui, Action<bool> onShown, Action onCommandExecuted)
         {
             this.ui = ui;
             this.onShown = onShown;
+            this.onCommandExecuted = onCommandExecuted;
         }
 
         public VisualElement Build(LayoutMode layoutMode, ScrollView suggestionsColumn)
@@ -126,7 +128,7 @@ namespace ThanhDV.BugCatcher.UI
             string command = field.value;
             if (string.IsNullOrWhiteSpace(command)) return;
 
-            BugCatcher.Commands.Execute(command);
+            ExecuteCommand(command);
             field.SetValueWithoutNotify(string.Empty);
             historyOnly = false;
             SetClass(historyButton, "on", false);
@@ -135,6 +137,12 @@ namespace ThanhDV.BugCatcher.UI
             if (mode == LayoutMode.Landscape) field.Blur();
             Render();
             if (mode == LayoutMode.Desktop) field.schedule.Execute(() => field.Focus());
+        }
+
+        private void ExecuteCommand(string command)
+        {
+            BugCatcher.Commands.Execute(command);
+            onCommandExecuted();
         }
 
         private void UpdatePlaceholder()
@@ -286,7 +294,7 @@ namespace ThanhDV.BugCatcher.UI
                 string c = command;
                 chips.Add(Tap(Div("quick-chip", Text(c, "mono fs-chip")), () =>
                 {
-                    BugCatcher.Commands.Execute(c);
+                    ExecuteCommand(c);
                     if (mode == LayoutMode.Landscape)
                     {
                         renderedFor = null;

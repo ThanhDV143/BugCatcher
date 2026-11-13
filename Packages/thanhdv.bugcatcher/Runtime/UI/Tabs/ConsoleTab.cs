@@ -39,6 +39,9 @@ namespace ThanhDV.BugCatcher.UI
         private LogEntry asideEntry;
         private int asideCount;
         private bool dirty = true;
+        private bool scrollAfterCommand;
+        private bool followLatest = true;
+        private IVisualElementScheduledItem scrollToLatest;
         private bool visible;
         private float refreshTimer;
 
@@ -46,7 +49,7 @@ namespace ThanhDV.BugCatcher.UI
         {
             this.ui = ui;
             this.panel = panel;
-            commandBar = new CommandBar(ui, OnSuggestionsShown);
+            commandBar = new CommandBar(ui, OnSuggestionsShown, () => scrollAfterCommand = true);
             BugCatcher.Logs.OnChanged += () => dirty = true;
         }
 
@@ -91,8 +94,14 @@ namespace ThanhDV.BugCatcher.UI
 
         public void SetVisible(bool isVisible)
         {
+            if (isVisible && !visible) followLatest = true;
             visible = isVisible;
             if (isVisible) dirty = true;
+            else
+            {
+                scrollAfterCommand = false;
+                scrollToLatest?.Pause();
+            }
         }
 
         public void ApplySettings()
@@ -250,7 +259,29 @@ namespace ThanhDV.BugCatcher.UI
             ScrollView scroll = list.Q<ScrollView>();
             scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             if (mode != LayoutMode.Desktop) scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            scrollToLatest = list.schedule.Execute(() => list.ScrollToItem(-1));
+            scrollToLatest.Pause();
+            scroll.contentContainer.RegisterCallback<GeometryChangedEvent>(_ => ScheduleScrollToLatest());
+            scroll.contentViewport.RegisterCallback<GeometryChangedEvent>(_ => ScheduleScrollToLatest());
+            scroll.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (e.pressedButtons != 0 && Mathf.Abs(e.deltaPosition.y) > 0f) StopFollowingLatest();
+            }, TrickleDown.TrickleDown);
+            scroll.RegisterCallback<WheelEvent>(_ => StopFollowingLatest(), TrickleDown.TrickleDown);
+            scroll.verticalScroller.RegisterCallback<PointerDownEvent>(_ => StopFollowingLatest(), TrickleDown.TrickleDown);
             return list;
+        }
+
+        private void ScheduleScrollToLatest()
+        {
+            if (followLatest && visible && items.Count > 0) scrollToLatest.ExecuteLater(0);
+        }
+
+        private void StopFollowingLatest()
+        {
+            followLatest = false;
+            scrollAfterCommand = false;
+            scrollToLatest.Pause();
         }
 
         private VisualElement MakeRow()
@@ -306,7 +337,9 @@ namespace ThanhDV.BugCatcher.UI
             if (!visible) return;
 
             ScrollView scroll = list.Q<ScrollView>();
-            bool atBottom = scroll.verticalScroller.value >= scroll.verticalScroller.highValue - 4f;
+            followLatest = scrollAfterCommand || followLatest ||
+                scroll.verticalScroller.value >= scroll.verticalScroller.highValue - 4f;
+            scrollAfterCommand = false;
 
             items.Clear();
             if (Settings.collapse)
@@ -325,7 +358,7 @@ namespace ThanhDV.BugCatcher.UI
             }
 
             list.RefreshItems();
-            if (atBottom && items.Count > 0) list.ScrollToItem(items.Count - 1);
+            ScheduleScrollToLatest();
             if (aside != null && (asideEntry != selected || (selected != null && selected.Count != asideCount))) ShowDetailInAside();
         }
 
