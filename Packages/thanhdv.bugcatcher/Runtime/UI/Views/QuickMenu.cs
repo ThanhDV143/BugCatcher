@@ -101,9 +101,15 @@ namespace ThanhDV.BugCatcher.UI
 
             Rect b = bubble.worldBound;
             Vector2 size = ui.PanelSize;
-            bool roomOnLeft = b.center.x > size.x * 0.5f;
-            menu.style.left = roomOnLeft ? Mathf.Max(8f, b.xMin - Gap - Width) : b.xMax + Gap;
-            menu.style.top = Mathf.Clamp(b.yMin, ui.SafeInsets.Top + 8f, Mathf.Max(ui.SafeInsets.Top + 8f, size.y - ui.SafeInsets.Bottom - 340f));
+            Insets safe = ui.SafeInsets;
+            float left = safe.Left + 8f;
+            float right = size.x - safe.Right - 8f;
+            float width = Mathf.Clamp(right - left, 0f, Width);
+            bool roomOnLeft = b.center.x > (left + right) * 0.5f;
+            float x = roomOnLeft ? b.xMin - Gap - width : b.xMax + Gap;
+            menu.style.width = width;
+            menu.style.left = Mathf.Clamp(x, left, Mathf.Max(left, right - width));
+            menu.style.top = Mathf.Clamp(b.yMin, safe.Top + 8f, Mathf.Max(safe.Top + 8f, size.y - safe.Bottom - 340f));
 
             Show(Root, true);
             menu.RemoveFromClassList("open");

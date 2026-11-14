@@ -344,9 +344,10 @@ namespace ThanhDV.BugCatcher.UI
         {
             if (builtMode != LayoutMode.Portrait || container == null) return;
 
-            // Relative to the safe-area layer; the half sheet keeps its on-screen position.
             float full = 5f;
-            float half = ui.PanelSize.y * HalfSheet - ui.SafeInsets.Top;
+            Insets margins = ui.ScreenMargins;
+            float height = ui.PanelSize.y - margins.Top - margins.Bottom;
+            float half = Mathf.Max(full, margins.Top + height * HalfSheet - ui.SafeInsets.Top);
             container.style.top = (BugCatcher.Settings.sheetHalf ? half : full) + sheetDragOffset;
         }
 

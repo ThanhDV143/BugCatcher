@@ -31,7 +31,7 @@ namespace ThanhDV.BugCatcher.UI
             Width == other.Width && Height == other.Height && SafeArea == other.SafeArea && Mobile == other.Mobile;
     }
 
-    /// <summary>Screen insets (safe area) in panel units.</summary>
+    /// <summary>Screen insets in panel units.</summary>
     internal struct Insets
     {
         public float Left, Top, Right, Bottom;
@@ -56,6 +56,7 @@ namespace ThanhDV.BugCatcher.UI
         private readonly VisualElement previewCatcher;
         private readonly StyleSheet baseSheet;
         private DisplayInfo display;
+        private Vector4 appliedMargins;
         private string appliedTheme;
         private bool previewing;
 
@@ -132,8 +133,9 @@ namespace ThanhDV.BugCatcher.UI
         public static BugCatcherSettings Settings => BugCatcher.Settings;
 
         public VisualElement Root { get; }
-        /// <summary>Full-screen container inset by the device safe area.</summary>
+        /// <summary>Full-screen container inset by the device safe area and screen margins.</summary>
         public VisualElement Safe { get; }
+        public Insets ScreenMargins { get; private set; }
         /// <summary>HUD layer inside <see cref="Safe"/>; the bubble keeps clear of its modules.</summary>
         public VisualElement HudRoot => hud.Root;
         public LayoutMode Mode { get; private set; }
@@ -233,6 +235,7 @@ namespace ThanhDV.BugCatcher.UI
 
         private void ApplySettings()
         {
+            UpdateScreen(false);
             ThemeInfo theme = Theme;
             if (appliedTheme != theme.UssClass)
             {
@@ -254,13 +257,27 @@ namespace ThanhDV.BugCatcher.UI
         private void UpdateScreen(bool force)
         {
             DisplayInfo current = DisplayOverride ?? DisplayInfo.Current;
-            if (!force && current.Same(display)) return;
+            Vector4 margins = Settings.screenMargins;
+            if (!force && current.Same(display) && margins.Equals(appliedMargins)) return;
 
             display = current;
+            appliedMargins = margins;
             Scale = ComputeScale(display);
             panelSettings.scale = Scale;
 
             Rect safe = display.SafeArea;
+            Vector2 horizontal = FitMargins(margins.x, margins.z, safe.width);
+            Vector2 vertical = FitMargins(margins.y, margins.w, safe.height);
+            ScreenMargins = new Insets
+            {
+                Left = horizontal.x / Scale,
+                Top = vertical.x / Scale,
+                Right = horizontal.y / Scale,
+                Bottom = vertical.y / Scale
+            };
+            safe = Rect.MinMaxRect(safe.xMin + horizontal.x, safe.yMin + vertical.y,
+                safe.xMax - horizontal.y, safe.yMax - vertical.x);
+            triggers.SafeArea = safe;
             SafeInsets = new Insets
             {
                 Left = safe.xMin / Scale,
@@ -283,6 +300,15 @@ namespace ThanhDV.BugCatcher.UI
             bubble.Refresh();
             panel.OnScreenChanged(modeChanged);
             quickMenu.Close();
+        }
+
+        private Vector2 FitMargins(float start, float end, float availablePixels)
+        {
+            var margins = new Vector2(Mathf.Max(0f, start), Mathf.Max(0f, end));
+            float total = margins.x + margins.y;
+            // Leave room to reopen Settings even with oversized values or a smaller screen.
+            float budget = Mathf.Max(0f, availablePixels - Mathf.Min(200f * Scale, availablePixels * 0.5f));
+            return total > budget ? margins * (budget / total) : margins;
         }
 
         private static float ComputeScale(DisplayInfo info)

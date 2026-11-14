@@ -302,6 +302,7 @@
 
 /* Slider */
 .slider { height: 28px; }
+.slider-lane { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
 .slider-track,
 .slider-fill {
     position: absolute;
@@ -1111,6 +1112,11 @@
 }
 .setting-row.first { border-top-width: 0; }
 .setting-row > .col { margin-right: 12px; }
+.margin-row .slider { height: 44px; }
+.margin-row .slider-lane { left: 10px; right: 10px; }
+.margin-row .slider-track,
+.margin-row .slider-fill { top: 20px; }
+.margin-row .slider-thumb { top: 12px; }
 .auto-options { flex-direction: column; }
 .auto-mode { padding: 10px 12px 12px 12px; border-top-width: 1px; border-top-color: var(--divider); }
 .auto-mode > Label { margin-bottom: 6px; }

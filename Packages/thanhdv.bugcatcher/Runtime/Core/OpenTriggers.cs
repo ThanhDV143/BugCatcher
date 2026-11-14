@@ -93,6 +93,7 @@ namespace ThanhDV.BugCatcher
 
         /// <summary>When true (panel open), the corner gesture is ignored.</summary>
         public bool GestureEnabled { get; set; } = true;
+        public Rect SafeArea { get; set; }
 
         /// <summary>Returns true when the key sequence fired this frame.</summary>
         public bool TickKeys(bool textFieldFocused)
@@ -164,9 +165,9 @@ namespace ThanhDV.BugCatcher
             holding = false;
         }
 
-        private static bool InTopCorners(Vector2 left, Vector2 right)
+        private bool InTopCorners(Vector2 left, Vector2 right)
         {
-            Rect safe = Screen.safeArea;
+            Rect safe = SafeArea;
             float zone = Mathf.Min(Screen.width, Screen.height) * ZoneFraction;
             bool leftOk = left.x <= safe.xMin + zone && left.y >= safe.yMax - zone;
             bool rightOk = right.x >= safe.xMax - zone && right.y >= safe.yMax - zone;

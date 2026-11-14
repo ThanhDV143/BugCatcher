@@ -62,6 +62,7 @@ namespace ThanhDV.BugCatcher
     {
         private const string PrefsKey = "ThanhDV.BugCatcher.Settings";
         private const int MaxRecentCommands = 10;
+        internal const int MaxScreenMargin = 500;
 
         public string theme = "graphite";
         public bool showBubble = true;
@@ -70,6 +71,7 @@ namespace ThanhDV.BugCatcher
         public float bubbleY = 0f;
         public HudLayout hud = new HudLayout();
         public TextSize textSize = TextSize.Default;
+        [SerializeField] internal Vector4 screenMargins; // Left, top, right, bottom in screen pixels.
         public List<LayoutPreset> presets = new List<LayoutPreset>();
         /// <summary>-1 = built-in Default, -2 = none (layout edited since), otherwise an index into <see cref="presets"/>.</summary>
         public int activePreset = -1;
@@ -102,6 +104,8 @@ namespace ThanhDV.BugCatcher
             }
 
             settings ??= new BugCatcherSettings();
+            for (int edge = 0; edge < 4; edge++)
+                settings.screenMargins[edge] = Mathf.Clamp(settings.screenMargins[edge], 0, MaxScreenMargin);
             settings.hud ??= new HudLayout();
             settings.hud.Sanitize();
             settings.presets ??= new List<LayoutPreset>();

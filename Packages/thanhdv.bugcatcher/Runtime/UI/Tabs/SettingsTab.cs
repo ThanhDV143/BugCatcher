@@ -5,7 +5,7 @@ using static ThanhDV.BugCatcher.UI.UIB;
 
 namespace ThanhDV.BugCatcher.UI
 {
-    /// <summary>Bubble visibility, the three ways to open, text size, auto screenshot, and HUD layout presets.</summary>
+    /// <summary>Bubble visibility, ways to open, text size, screen margins, auto screenshot, and HUD layout presets.</summary>
     internal class SettingsTab : IPanelTab
     {
         private VisualElement root;
@@ -62,6 +62,11 @@ namespace ThanhDV.BugCatcher.UI
             textSize.Option(2).AddToClassList("fs-large");
             content.Add(Div("group", Text("TEXT SIZE", "lbl"), textSize));
 
+            content.Add(Div("group", Text("SCREEN MARGINS", "lbl"),
+                Text("Extra space beyond the safe area", "fs-caption c-secondary"),
+                Div("card", MarginRow("Left", 0, "first"), MarginRow("Top", 1),
+                    MarginRow("Right", 2), MarginRow("Bottom", 3))));
+
             content.Add(Div("group", Text("AUTO SCREENSHOT", "lbl"), BuildAutoScreenshot()));
 
             presetList = Div("card");
@@ -87,6 +92,45 @@ namespace ThanhDV.BugCatcher.UI
 
             ApplySettings();
             return root;
+        }
+
+        private VisualElement MarginRow(string label, int edge, string extra = null)
+        {
+            bool changed = false;
+            int initial = Mathf.RoundToInt(Settings.screenMargins[edge]);
+            Label readout = Text(initial + " px", "mono fs-body c-secondary");
+            var slider = new SliderBar(0f, BugCatcherSettings.MaxScreenMargin, initial, value =>
+            {
+                int pixels = Mathf.RoundToInt(value);
+                if (pixels == Settings.screenMargins[edge]) return;
+
+                Settings.screenMargins[edge] = pixels;
+                readout.text = pixels + " px";
+                changed = true;
+            });
+            // ScrollView starts touch scrolling in trickle-down, before the slider sees PointerDown.
+            root.RegisterCallback<PointerDownEvent>(e =>
+            {
+                if (e.target != slider) return;
+                e.StopPropagation();
+                slider.BeginDrag(e.pointerId, e.position);
+            }, TrickleDown.TrickleDown);
+            slider.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (slider.HasPointerCapture(e.pointerId)) e.StopPropagation();
+            });
+            root.RegisterCallback<PointerCaptureEvent>(e =>
+            {
+                if (e.target == slider) e.StopPropagation();
+            }, TrickleDown.TrickleDown);
+            slider.RegisterCallback<PointerCaptureOutEvent>(_ =>
+            {
+                if (!changed) return;
+                changed = false;
+                Settings.Changed();
+            });
+            return Div("setting-row margin-row " + extra,
+                Div("slider-group grow", Div("slider-head", Text(label, "fs-body w500"), readout), slider));
         }
 
         private VisualElement BuildAutoScreenshot()

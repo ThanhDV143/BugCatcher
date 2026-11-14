@@ -177,12 +177,15 @@ namespace ThanhDV.BugCatcher.UI
     /// <summary>Slider drawn as track + accent fill + ring thumb.</summary>
     internal class SliderBar : VisualElement
     {
+        private readonly VisualElement lane;
         private readonly VisualElement fill;
         private readonly VisualElement thumb;
         private readonly float min;
         private readonly float max;
         private readonly Action<float> onChanged;
         private float value;
+        private float dragLeft;
+        private float dragWidth;
 
         public SliderBar(float min, float max, float value, Action<float> onChanged)
         {
@@ -191,41 +194,46 @@ namespace ThanhDV.BugCatcher.UI
             this.onChanged = onChanged;
             AddToClassList("slider");
             pickingMode = PickingMode.Position;
-            Add(UIB.Div("slider-track"));
             fill = UIB.Div("slider-fill");
             thumb = UIB.Div("slider-thumb");
-            Add(fill);
-            Add(thumb);
-            fill.pickingMode = thumb.pickingMode = PickingMode.Ignore;
+            var track = UIB.Div("slider-track");
+            lane = UIB.Div("slider-lane", track, fill, thumb);
+            Add(lane);
+            lane.pickingMode = track.pickingMode = fill.pickingMode = thumb.pickingMode = PickingMode.Ignore;
             SetValue(value);
 
-            RegisterCallback<PointerDownEvent>(e =>
-            {
-                this.CapturePointer(e.pointerId);
-                Drag(e.localPosition.x);
-            });
+            RegisterCallback<PointerDownEvent>(e => BeginDrag(e.pointerId, e.position));
             RegisterCallback<PointerMoveEvent>(e =>
             {
-                if (this.HasPointerCapture(e.pointerId)) Drag(e.localPosition.x);
+                if (this.HasPointerCapture(e.pointerId)) Drag(e.position.x);
             });
             RegisterCallback<PointerUpEvent>(e => this.ReleasePointer(e.pointerId));
+            RegisterCallback<PointerCancelEvent>(e => this.ReleasePointer(e.pointerId));
         }
 
         public float Value => value;
 
+        internal void BeginDrag(int pointerId, Vector2 position)
+        {
+            Rect bounds = lane.worldBound;
+            dragLeft = bounds.xMin;
+            dragWidth = bounds.width;
+            this.CapturePointer(pointerId);
+            Drag(position.x);
+        }
+
         private void Drag(float x)
         {
-            float width = contentRect.width;
-            if (width <= 0f) return;
+            if (dragWidth <= 0f) return;
 
-            SetValue(Mathf.Lerp(min, max, Mathf.Clamp01(x / width)));
+            SetValue(Mathf.Lerp(min, max, Mathf.Clamp01((x - dragLeft) / dragWidth)));
             onChanged?.Invoke(value);
         }
 
         public void SetValue(float v)
         {
             value = Mathf.Clamp(v, min, max);
-            float t = (value - min) / (max - min);
+            float t = Mathf.InverseLerp(min, max, value);
             fill.style.width = Length.Percent(t * 100f);
             thumb.style.left = Length.Percent(t * 100f);
         }
