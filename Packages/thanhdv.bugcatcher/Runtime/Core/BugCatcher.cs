@@ -95,6 +95,12 @@ namespace ThanhDV.BugCatcher
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Bootstrap()
         {
+            if (BugCatcherAssets.Instance == null)
+            {
+                Debug.LogError("[BugCatcher] BugCatcherAssets is not loaded (it is added to Preloaded Assets at build time). Bug Catcher is off.");
+                return;
+            }
+
             Logs = new LogStore();
             Logs.Attach();
             Settings = BugCatcherSettings.Load();

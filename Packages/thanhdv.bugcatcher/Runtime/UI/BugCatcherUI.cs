@@ -63,10 +63,11 @@ namespace ThanhDV.BugCatcher.UI
         public BugCatcherUI(GameObject host, OpenTriggers triggers)
         {
             this.triggers = triggers;
-            Fonts.Load();
+            BugCatcherAssets assets = BugCatcherAssets.Instance;
+            Fonts.Load(assets);
 
             // A copy of the shipped asset (it carries the empty theme), so runtime scale changes never touch the asset.
-            panelSettings = Object.Instantiate(Resources.Load<PanelSettings>("BugCatcher/BugCatcherPanelSettings"));
+            panelSettings = Object.Instantiate(assets.panelSettings);
             panelSettings.name = "BugCatcher PanelSettings";
 
             var document = host.AddComponent<UIDocument>();
@@ -77,7 +78,7 @@ namespace ThanhDV.BugCatcher.UI
             documentRoot.style.position = Position.Absolute;
             documentRoot.style.left = documentRoot.style.top = documentRoot.style.right = documentRoot.style.bottom = 0f;
 
-            baseSheet = Resources.Load<StyleSheet>("BugCatcher/BugCatcher");
+            baseSheet = assets.styleSheet;
             Root = UIB.Div("bc");
             Root.pickingMode = PickingMode.Ignore;
             Root.styleSheets.Add(baseSheet);

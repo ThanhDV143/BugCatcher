@@ -13,27 +13,37 @@ namespace ThanhDV.BugCatcher.UI
         private static FontDefinition[] sans;
         private static FontDefinition[] mono;
 
-        public static void Load()
+        public static void Load(BugCatcherAssets assets)
         {
             if (sans != null) return;
 
-            sans = new[] { Create("IBMPlexSans-Regular"), Create("IBMPlexSans-Medium"), Create("IBMPlexSans-SemiBold") };
-            mono = new[] { Create("IBMPlexMono-Regular"), Create("IBMPlexMono-Medium"), Create("IBMPlexMono-SemiBold") };
+            sans = Create(assets.sansFonts);
+            mono = Create(assets.monoFonts);
         }
 
-        private static FontDefinition Create(string name)
+        /// <summary>Regular, Medium, SemiBold.</summary>
+        private static FontDefinition[] Create(Font[] fonts)
         {
-            var font = Resources.Load<Font>("BugCatcher/Fonts/" + name);
+            var definitions = new FontDefinition[3];
+            for (int i = 0; i < definitions.Length; i++)
+            {
+                if (fonts != null && i < fonts.Length) definitions[i] = Create(fonts[i]);
+            }
+            return definitions;
+        }
+
+        private static FontDefinition Create(Font font)
+        {
             if (font == null)
             {
-                Debug.LogWarning("[BugCatcher] Missing font " + name);
+                Debug.LogWarning("[BugCatcher] Missing font in BugCatcherAssets");
                 return default;
             }
 
             FontAsset asset = FontAsset.CreateFontAsset(font);
             if (asset == null) return FontDefinition.FromFont(font);
 
-            asset.name = name;
+            asset.name = font.name;
             return FontDefinition.FromSDFFont(asset);
         }
 
