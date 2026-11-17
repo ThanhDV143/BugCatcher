@@ -1,116 +1,113 @@
 # BugCatcher
 
-An in-game debug overlay for Unity: performance HUD, log console, audio spectrum and system info in one tool. Built on Graphy and In-game Debug Console.
+An in-game debug overlay for Unity: performance HUD, log console with commands, audio spectrum and system info.
 
-## Features
-
-- **HUD**: FPS, RAM, Audio, Logs and System modules, each with its own display mode and screen corner. Touches pass through to the game.
-- **Console**: logs with search, filters, collapse and stack traces; run In-game Debug Console commands with suggestions.
-- **Audio**: live spectrum and levels from Unity Audio or FMOD.
-- **System**: device, OS, CPU, GPU, RAM and screen info, one tap to copy.
-- **Bubble**: floating button showing FPS and the error count.
-- **Auto screenshot**: keeps the last seconds of gameplay in memory and saves them when the game hitches or throws an error; record low-resolution clips from code.
-- Graphite and Paper themes, adjustable HUD scale and opacity, layout presets.
-- Works on desktop, phone portrait and phone landscape.
+- **HUD**: FPS, RAM, Audio, Logs and System modules; touches pass through to the game.
+- **Console**: search, filters, collapse, stack traces and your own commands.
+- **Audio**: spectrum and levels from Unity Audio or FMOD.
+- **Auto screenshot**: saves the last seconds of gameplay when the game hitches or throws an error.
+- Themes, layout presets; desktop, phone portrait and landscape.
 
 ## Installation
 
-Requires Unity 2022.3 or newer. Depends on Graphy (`com.tayx.graphy` 4.0.0) and In-game Debug Console (`com.yasirkula.ingamedebugconsole` 1.9.0).
+Requires Unity 2022.3 or newer.
 
-### Unity Package Manager
-```
-https://github.com/ThanhDV143/BugCatcher.git?path=/Packages/thanhdv.bugcatcher
-```
-
-1. In Unity, open **Window** → **Package Manager**.
-2. Press the **+** button, choose "**Add package from git URL...**"
-3. Enter url above and press **Add**.
-
-Unity does not fetch dependencies from git: add the scoped registry below first (scopes `com.tayx` and `com.yasirkula` are enough), or install Graphy and In-game Debug Console yourself.
-
-### Scoped Registry
-
-1. In Unity, open **Project Settings** → **Package Manager** → **Add New Scoped Registry**
-- ``Name`` ThanhDVs
-- ``URL`` https://upm.thanhdv.com
-- ``Scope(s)`` thanhdv, com.tayx, com.yasirkula
-
-2. In Unity, open **Window** → **Package Manager**.
-- Press the **+** button, choose "**Add package by name...**" → ``thanhdv.bugcatcher``
-- or
-- Press the **Packages** button, choose "**My Registries**"
+- **Git URL** (*Package Manager → + → Add package from git URL*):
+  `https://github.com/ThanhDV143/BugCatcher.git?path=/Packages/thanhdv.bugcatcher`
+- **Scoped registry** (*Project Settings → Package Manager*): name `ThanhDVs`, URL `https://upm.thanhdv.com`, scope `thanhdv`; then add `thanhdv.bugcatcher` by name.
 
 ## Enabling and disabling
 
-> **BugCatcher is enabled right after import (it adds the `BUGCATCHER_ENABLED` symbol for you). No prefab or scene setup is needed.**
-
-Use *Tools → ThanhDV → Bug Catcher → Enable Bug Catcher*.
-
-BugCatcher is only included while the `BUGCATCHER_ENABLED` scripting symbol is set, in the Editor and in every build.
+BugCatcher is enabled right after import: it adds the `BUGCATCHER_ENABLED` symbol, and needs no scene setup. It is only included while that symbol is set. Toggle it with *Tools → ThanhDV → Bug Catcher → Enable Bug Catcher*.
 
 > **Untick *Enable Bug Catcher* before making a release build**, or it will ship with your game.
 
 ## Usage
 
-Open the panel:
+Open the panel by tapping the bubble (hold it for the quick menu), holding both top corners of the screen for 1 s on mobile, or pressing `` ` `` three times on desktop. From code: `BugCatcher.Open()`, `Close()`, `Toggle()`.
 
-| Action | Platform |
-|---|---|
-| Tap the bubble | All |
-| Hold the bubble for the quick menu | All |
-| Hold both top corners of the screen for 1 second | Mobile |
-| Press `` ` `` three times quickly | Desktop / Editor |
-
-From code: `BugCatcher.Open()`, `BugCatcher.Close()`, `BugCatcher.Toggle()`.
-
-Configure the HUD (modules, corners, scale, theme) in the panel's **HUD** tab.
-
-## Screenshots
-
-**Screenshot** in the bubble's quick menu saves one full-resolution PNG without the overlay.
-
-**Auto screenshot** (Settings tab, off by default) captures low-resolution frames continuously and keeps the last 2 s in memory. When a signal arrives, it saves those 2 s and keeps saving until 2 s pass with no new signal:
-
-- **Drop FPS**: a frame at least 3× longer than the 5 s average and at least 50 ms.
-- **Error / Exception**: the first time each error appears in the play session.
-
-Pick the capture quality (resolution and frames per second) in Settings. Each incident is saved to its own folder under `Application.persistentDataPath/BugCatcher/Recordings`, with an `info.txt` describing what happened. There is no size limit; if the disk fills up, capturing stops.
-
-A recording bubble appears next to the bubble while anything is captured. Hold it for about a second to stop (auto screenshot stays off until the next launch).
-
-From code:
+**Auto screenshot** (Settings tab, off by default) keeps the last 2 s of low-resolution frames in memory and saves them, with an `info.txt`, to `Application.persistentDataPath/BugCatcher/Recordings` when a frame takes 3× the 5 s average (and at least 50 ms) or an error appears for the first time. Record from code:
 
 ```csharp
-BugCatcher.Recorder.Start("Boss fight", CaptureMode.P240_16); // record every frame to disk
+BugCatcher.Recorder.Start("Boss fight", CaptureMode.P240_16);
 string folder = BugCatcher.Recorder.Stop();
-
-string saved = BugCatcher.Recorder.SaveRecent("Quest bug");    // save the last 2 s (auto screenshot must be on)
-
-BugCatcher.Recorder.Suppress("Loading");                       // ignore hitches during heavy loading
-BugCatcher.Recorder.Resume();
+BugCatcher.Recorder.SaveRecent("Quest bug");   // save the last 2 s
+BugCatcher.Recorder.Suppress("Loading");       // ignore hitches until Resume()
 ```
 
-While `Start` is recording, auto screenshot pauses.
+**FMOD**: *Tools → ThanhDV → Bug Catcher → Use FMOD* (requires FMOD for Unity 2.02).
 
-## FMOD
+**Input System only**: add an `EventSystem` with `InputSystemUIInputModule` to the scene.
 
-Use *Tools → ThanhDV → Bug Catcher → Use FMOD* to show FMOD audio in the Audio tab and HUD. Requires FMOD for Unity (2.02 API).
+## Commands
 
-## Custom commands
-
-Add commands the In-game Debug Console way; they appear in the console with suggestions:
+Mark a static method with `[ConsoleMethod]`, or add a method or lambda from code:
 
 ```csharp
-[ConsoleMethod("player.heal", "Restore full health")]
-public static void Heal() { ... }
+#if BUGCATCHER_ENABLED
+using ThanhDV.BugCatcher;
+
+public static class PlayerCommands
+{
+    [ConsoleMethod("player.gold", "Add gold", "amount")]
+    private static void AddGold(int amount) { ... }
+}
+#endif
 ```
 
-Commands without parameters also show up as quick buttons.
+```csharp
+BugCatcher.Commands.Add("player.heal", "Restore full health", Heal);
+BugCatcher.Commands.Add<int>("player.hp", "Set health", value => hp = value, "value");
+BugCatcher.Commands.Remove("player.hp");
+```
 
-## Input System
+- Parameters: `string`, `bool`, `char`, numbers, enums, `Vector2/3/4`, `Vector2Int/3Int`, `Quaternion`, `Color`. Group an argument with spaces in quotes or brackets: `player.teleport (1 2 3)`.
+- Commands without parameters show up as quick buttons; `help` lists every command.
+- A command added on an object is removed when the object is destroyed.
+- Commands survive managed code stripping; no `[Preserve]` or `link.xml` needed.
 
-If your project uses **only** the new Input System, add an `EventSystem` with `InputSystemUIInputModule` to the scene so the panel receives input.
+### Keep debug code out of release builds
+
+Without `BUGCATCHER_ENABLED`, BugCatcher's types do not exist, so any code that uses them outside `#if BUGCATCHER_ENABLED` fails the release build instead of shipping by accident.
+
+> **Write debug tools in a file wrapped in `#if BUGCATCHER_ENABLED`, or in an assembly definition that has `BUGCATCHER_ENABLED` in its *Define Constraints*.**
+
+To register commands from a gameplay class without `#if` in it, use a partial method; without the symbol the call is removed:
+
+```csharp
+// Player.cs
+public partial class Player : MonoBehaviour
+{
+    private void OnEnable() => AddDebugCommands();
+    partial void AddDebugCommands();
+}
+
+// Player.Debug.cs
+#if BUGCATCHER_ENABLED
+using ThanhDV.BugCatcher;
+
+public partial class Player
+{
+    partial void AddDebugCommands() => BugCatcher.Commands.Add("player.heal", "Restore full health", Heal);
+    private void Heal() { ... }
+}
+#endif
+```
+
+Do not put debug components on prefabs or point Inspector events at debug methods: those are not compiled code, so they break at run time instead of at build time.
 
 ## License
 
 Fonts: IBM Plex Sans / Mono, SIL Open Font License 1.1.
+
+---
+
+## Upgrading from 1.x.x to 2.x.x
+
+2.x no longer depends on In-game Debug Console or Graphy.
+
+- Replace `using IngameDebugConsole;` with `using ThanhDV.BugCatcher;`; `[ConsoleMethod]` keeps its arguments.
+- Wrap command files as described in *Keep debug code out of release builds*, or the release build fails.
+- `DebugLogConsole.AddCommand` / `RemoveCommand` → `BugCatcher.Commands.Add` / `Remove`, same arguments. `AddCommandInstance` and `AddCommandStatic` are gone: pass the method to `Add`.
+- No longer supported: `GameObject`, `Component`, array, list, `Rect`, `RectInt`, `Bounds`, `BoundsInt`, `RectOffset` and `Color32` parameters, custom parameter types, `OnCommandExecuted` and `help <name>`.
+- Remove `com.yasirkula.ingamedebugconsole` and `com.tayx.graphy` (and their registry scopes) if nothing else uses them.

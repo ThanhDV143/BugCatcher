@@ -1,4 +1,4 @@
-using IngameDebugConsole;
+#if BUGCATCHER_ENABLED
 using UnityEngine;
 
 namespace ThanhDV.BugCatcher.Test
@@ -43,3 +43,4 @@ namespace ThanhDV.BugCatcher.Test
         }
     }
 }
+#endif

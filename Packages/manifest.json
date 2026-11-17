@@ -1,7 +1,6 @@
 {
   "dependencies": {
     "com.coplaydev.unity-mcp": "10.3.1-beta.11",
-    "com.tayx.graphy": "4.0.0",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.feature.development": "1.0.1",
     "com.unity.mobile.android-logcat": "1.4.7",
@@ -9,7 +8,6 @@
     "com.unity.timeline": "1.7.7",
     "com.unity.ugui": "1.0.0",
     "com.unity.visualscripting": "1.9.4",
-    "com.yasirkula.ingamedebugconsole": "1.9.0",
     "thanhdv.packagemanager": "https://github.com/ThanhDV143/PackageManager.git?path=/Unity.PackageManager/Packages/thanhdv.packagemanager",
     "com.unity.modules.ai": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",
@@ -48,8 +46,6 @@
       "name": "ThanhDV",
       "url": "https://upm.thanhdv.com",
       "scopes": [
-        "com.tayx",
-        "com.yasirkula",
         "com.coplaydev"
       ]
     }

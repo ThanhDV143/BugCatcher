@@ -17,13 +17,6 @@
       },
       "url": "https://upm.thanhdv.com"
     },
-    "com.tayx.graphy": {
-      "version": "4.0.0",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {},
-      "url": "https://upm.thanhdv.com"
-    },
     "com.unity.collab-proxy": {
       "version": "2.12.4",
       "depth": 0,
@@ -173,21 +166,11 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.yasirkula.ingamedebugconsole": {
-      "version": "1.9.0",
-      "depth": 0,
-      "source": "registry",
-      "dependencies": {},
-      "url": "https://upm.thanhdv.com"
-    },
     "thanhdv.bugcatcher": {
       "version": "file:thanhdv.bugcatcher",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {
-        "com.tayx.graphy": "4.0.0",
-        "com.yasirkula.ingamedebugconsole": "1.9.0"
-      }
+      "dependencies": {}
     },
     "thanhdv.packagemanager": {
       "version": "https://github.com/ThanhDV143/PackageManager.git?path=/Unity.PackageManager/Packages/thanhdv.packagemanager",

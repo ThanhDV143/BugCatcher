@@ -109,7 +109,7 @@ namespace ThanhDV.BugCatcher
             UnityEngine.Object.DontDestroyOnLoad(go);
 
             Commands = new CommandService(Settings);
-            Performance = new PerformanceService(go);
+            Performance = new PerformanceService();
             Audio = new AudioService(Settings);
             foreach (IAudioProvider provider in pendingProviders) Audio.Register(provider);
             pendingProviders.Clear();

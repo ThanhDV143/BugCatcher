@@ -51,9 +51,10 @@ namespace ThanhDV.BugCatcher
         {
             get
             {
-                Resolution r = UnityEngine.Screen.currentResolution;
-                int hz = Mathf.RoundToInt((float)r.refreshRateRatio.value);
-                return UnityEngine.Screen.width + " × " + UnityEngine.Screen.height + " · " + hz + " Hz";
+                string size = UnityEngine.Screen.width + " × " + UnityEngine.Screen.height;
+                // Unity reports no valid rate in some cases, such as the Editor's Game view: show the size only.
+                double hz = UnityEngine.Screen.currentResolution.refreshRateRatio.value;
+                return double.IsNaN(hz) || double.IsInfinity(hz) || hz < 1 ? size : size + " · " + Mathf.RoundToInt((float)hz) + " Hz";
             }
         }
 

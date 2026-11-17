@@ -2,8 +2,6 @@
     "name": "ThanhDV.BugCatcher",
     "rootNamespace": "ThanhDV.BugCatcher",
     "references": [
-        "Tayx.Graphy",
-        "IngameDebugConsole.Runtime",
         "UnityEngine.UI",
         "Unity.InputSystem"
     ],

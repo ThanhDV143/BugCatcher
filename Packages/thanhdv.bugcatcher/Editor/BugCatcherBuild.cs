@@ -27,12 +27,7 @@ namespace ThanhDV.BugCatcher.Editor
         {
             // Always remove first: a failed build skips the postprocess and would leave the entry behind.
             Remove();
-
-            NamedBuildTarget target = NamedBuildTarget.FromBuildTargetGroup(report.summary.platformGroup);
-            bool enabled = PlayerSettings.GetScriptingDefineSymbols(target)
-                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Any(s => s.Trim() == EnabledSymbol);
-            if (!enabled) return;
+            if (!IsEnabled(report)) return;
 
             UnityEngine.Object asset = AssetDatabase.LoadMainAssetAtPath(AssetPath);
             if (asset == null) throw new BuildFailedException("[BugCatcher] Missing " + AssetPath);
@@ -42,11 +37,24 @@ namespace ThanhDV.BugCatcher.Editor
 
         public void OnPostprocessBuild(BuildReport report) => Remove();
 
+        /// <summary>Whether the build's platform has BUGCATCHER_ENABLED in Player Settings.</summary>
+        internal static bool IsEnabled(BuildReport report)
+        {
+            NamedBuildTarget target = NamedBuildTarget.FromBuildTargetGroup(report.summary.platformGroup);
+            return PlayerSettings.GetScriptingDefineSymbols(target)
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Any(s => s.Trim() == EnabledSymbol);
+        }
+
         private static void Remove()
         {
             UnityEngine.Object[] preloaded = PlayerSettings.GetPreloadedAssets();
             UnityEngine.Object[] kept = preloaded.Where(a => a == null || AssetDatabase.GetAssetPath(a) != AssetPath).ToArray();
-            if (kept.Length != preloaded.Length) PlayerSettings.SetPreloadedAssets(kept);
+            if (kept.Length == preloaded.Length) return;
+
+            PlayerSettings.SetPreloadedAssets(kept);
+            // The build saved Player Settings with the entry; save again so ProjectSettings.asset is left unchanged.
+            AssetDatabase.SaveAssets();
         }
     }
 }
