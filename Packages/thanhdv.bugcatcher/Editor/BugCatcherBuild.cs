@@ -33,9 +33,25 @@ namespace ThanhDV.BugCatcher.Editor
             if (asset == null) throw new BuildFailedException("[BugCatcher] Missing " + AssetPath);
 
             PlayerSettings.SetPreloadedAssets(PlayerSettings.GetPreloadedAssets().Append(asset).ToArray());
+            // A failed build never calls OnPostprocessBuild: remove the entry once the build has ended either way.
+            EditorApplication.delayCall += RemoveAfterBuild;
         }
 
         public void OnPostprocessBuild(BuildReport report) => Remove();
+
+        /// <summary>Also runs when the Editor loads, for an entry left by a build that ended with the Editor (batch mode, crash).</summary>
+        [InitializeOnLoadMethod]
+        private static void RemoveLeftover() => EditorApplication.delayCall += RemoveAfterBuild;
+
+        private static void RemoveAfterBuild()
+        {
+            if (BuildPipeline.isBuildingPlayer)
+            {
+                EditorApplication.delayCall += RemoveAfterBuild;
+                return;
+            }
+            Remove();
+        }
 
         /// <summary>Whether the build's platform has BUGCATCHER_ENABLED in Player Settings.</summary>
         internal static bool IsEnabled(BuildReport report)
