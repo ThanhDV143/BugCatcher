@@ -11,10 +11,10 @@ namespace ThanhDV.BugCatcher.Editor
     /// duration of the build, so a build without the symbol contains no Bug Catcher asset at all.
     /// </summary>
     /// <remarks>
-    /// Preloaded Assets must be set before the player scripts are compiled, so the symbol is read from Player Settings
-    /// and BuildPlayerOptions.extraScriptingDefines. Once the scripts are compiled, the build fails if that guess does
-    /// not match whether the runtime assembly was compiled. The assets are all Unity types, so they load even when the
-    /// Editor has not compiled the runtime, and this assembly needs no reference to it.
+    /// Preloaded Assets must be set before the player scripts are compiled, so the symbol is read from Player Settings,
+    /// the active Build Profile (Unity 6) and BuildPlayerOptions.extraScriptingDefines. Once the scripts are compiled,
+    /// the build fails if that guess does not match whether the runtime assembly was compiled. The assets are all Unity
+    /// types, so they load even when the Editor has not compiled the runtime, and this assembly needs no reference to it.
     /// </remarks>
     internal sealed class BugCatcherBuild : BuildPlayerProcessor, IPreprocessBuildWithReport, IPostBuildPlayerScriptDLLs, IPostprocessBuildWithReport
     {
@@ -33,15 +33,17 @@ namespace ThanhDV.BugCatcher.Editor
         public override void PrepareForBuild(BuildPlayerContext context)
         {
             BuildPlayerOptions options = context.BuildPlayerOptions;
-            expected = HasSymbol(options.targetGroup) ||
-                       (options.extraScriptingDefines != null && options.extraScriptingDefines.Any(s => s.Trim() == EnabledSymbol));
+            expected = HasSymbol(SymbolTarget(options.target, options.targetGroup, options.subtarget)) ||
+                       Contains(options.extraScriptingDefines) ||
+                       InActiveBuildProfile(options.target);
         }
 
         public void OnPreprocessBuild(BuildReport report)
         {
             // Clears entries left by an earlier build that did not get to clean up.
             Remove();
-            added = expected ?? HasSymbol(report.summary.platformGroup);
+            added = expected ?? (HasSymbol(SymbolTarget(report.summary.platform, report.summary.platformGroup, 0)) ||
+                                 InActiveBuildProfile(report.summary.platform));
             expected = null;
             if (!added) return;
 
@@ -62,7 +64,7 @@ namespace ThanhDV.BugCatcher.Editor
         {
             bool compiled = ContainsBugCatcher(report);
             if (compiled && !added)
-                throw new BuildFailedException("[BugCatcher] Bug Catcher is compiled into this build, but BUGCATCHER_ENABLED is not in Player Settings or BuildPlayerOptions.extraScriptingDefines, so its assets were not added. Set the symbol in one of them.");
+                throw new BuildFailedException("[BugCatcher] Bug Catcher is compiled into this build, but BUGCATCHER_ENABLED is not in Player Settings, the active Build Profile or BuildPlayerOptions.extraScriptingDefines, so its assets were not added. Set the symbol in one of them.");
             if (!compiled && added)
                 throw new BuildFailedException("[BugCatcher] BUGCATCHER_ENABLED is set but Bug Catcher was not compiled into this build, so its assets would ship unused.");
         }
@@ -73,11 +75,44 @@ namespace ThanhDV.BugCatcher.Editor
         internal static bool ContainsBugCatcher(BuildReport report) =>
             report.GetFiles().Any(f => Path.GetFileName(f.path) == RuntimeAssembly);
 
-        private static bool HasSymbol(BuildTargetGroup group)
+        /// <summary>
+        /// Where Player Settings keep the symbols this build compiles with: Server for a dedicated server build,
+        /// otherwise the target's group. Build scripts often leave targetGroup unset, so it is derived from target.
+        /// </summary>
+        /// <param name="subtarget">BuildPlayerOptions.subtarget; 0 means the subtarget selected in Build Settings.</param>
+        private static NamedBuildTarget SymbolTarget(BuildTarget target, BuildTargetGroup group, int subtarget)
         {
-            PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.FromBuildTargetGroup(group), out string[] symbols);
-            return symbols.Any(s => s.Trim() == EnabledSymbol);
+            if (group == BuildTargetGroup.Unknown) group = BuildPipeline.GetBuildTargetGroup(target);
+            if (group == BuildTargetGroup.Standalone)
+            {
+                var standalone = subtarget != 0 ? (StandaloneBuildSubtarget)subtarget : EditorUserBuildSettings.standaloneBuildSubtarget;
+                if (standalone == StandaloneBuildSubtarget.Server) return NamedBuildTarget.Server;
+            }
+            return NamedBuildTarget.FromBuildTargetGroup(group);
         }
+
+        private static bool HasSymbol(NamedBuildTarget target)
+        {
+            PlayerSettings.GetScriptingDefineSymbols(target, out string[] symbols);
+            return Contains(symbols);
+        }
+
+        /// <summary>
+        /// Unity 6 Build Profiles add their own Scripting Defines, which are not in BuildPlayerOptions. The profile being
+        /// built is the active one, also while a script builds a profile with BuildPlayerWithProfileOptions.
+        /// </summary>
+        private static bool InActiveBuildProfile(BuildTarget target)
+        {
+#if UNITY_6000_0_OR_NEWER
+            // The active profile's platform is the active build target.
+            UnityEditor.Build.Profile.BuildProfile profile = UnityEditor.Build.Profile.BuildProfile.GetActiveBuildProfile();
+            return profile != null && target == EditorUserBuildSettings.activeBuildTarget && Contains(profile.scriptingDefines);
+#else
+            return false;
+#endif
+        }
+
+        private static bool Contains(string[] symbols) => symbols != null && symbols.Any(s => s.Trim() == EnabledSymbol);
 
         /// <summary>Also runs when the Editor loads, for entries left by a build that ended with the Editor (batch mode, crash).</summary>
         [InitializeOnLoadMethod]

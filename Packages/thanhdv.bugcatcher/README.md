@@ -18,7 +18,7 @@ Requires Unity 2022.3 or newer.
 
 ## Enabling and disabling
 
-BugCatcher is enabled right after import: it adds the `BUGCATCHER_ENABLED` symbol, and needs no scene setup. It is only included while that symbol is set. Toggle it with *Tools → ThanhDV → Bug Catcher → Enable Bug Catcher*. Build scripts can also pass the symbol in `BuildPlayerOptions.extraScriptingDefines`.
+BugCatcher is enabled right after import: it adds the `BUGCATCHER_ENABLED` symbol, and needs no scene setup. It is only included while that symbol is set. Toggle it with *Tools → ThanhDV → Bug Catcher → Enable Bug Catcher*. Build scripts can also pass the symbol in `BuildPlayerOptions.extraScriptingDefines`, and Unity 6 Build Profiles in their *Scripting Defines*.
 
 > **Run *Tools → ThanhDV → Bug Catcher → Disable All for Release* before building a release.** It removes `BUGCATCHER_ENABLED` and `BUGCATCHER_FMOD` from every build target and keeps your other symbols.
 
@@ -64,7 +64,7 @@ BugCatcher.Commands.Remove("player.hp");
 - Parameters: `string`, `bool`, `char`, numbers, enums, `Vector2/3/4`, `Vector2Int/3Int`, `Quaternion`, `Color`. Group an argument with spaces in quotes or brackets: `player.teleport (1 2 3)`.
 - Commands without parameters show up as quick buttons; `help` lists every command.
 - A command added on an object is removed when the object is destroyed.
-- Commands survive managed code stripping with no `[Preserve]` or `link.xml`, as long as the Editor has compiled with `BUGCATCHER_ENABLED`. If the symbol is passed only to the build, set *Managed Stripping Level* to *Minimal*.
+- Commands survive managed code stripping at every level with no `[Preserve]` or `link.xml`, however `BUGCATCHER_ENABLED` is set.
 
 ### Keep debug code out of release builds
 
