@@ -24,6 +24,7 @@ jobs:
     env:
       REGISTRY_URL: https://upm.thanhdv.com
       NODE_VERSION: '22.x'
+      UPM_CLI_VERSION: 'v9.36.0' # Unity UPM CLI used to sign the package (latest: https://cdn.packages.unity.com/upm-cli/latest.txt)
 
     steps:
       # Step 1: Checkout the source code at the pushed tag
@@ -49,13 +50,38 @@ jobs:
           echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
           echo "display_name=$(node -p "require('./package.json').displayName || require('./package.json').name")" >> $GITHUB_OUTPUT
 
-      # Step 4: Pack and publish to Verdaccio using the secure token.
+      # Step 4: Install Unity's UPM CLI (the script verifies the download's SHA256).
+      - name: Install UPM CLI
+        id: install-upm
+        run: |
+          curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash -s -- "$UPM_CLI_VERSION"
+          echo "$HOME/.upm/bin" >> "$GITHUB_PATH"
+
+      # Step 5: Pack + sign the package with a Unity service account, so Unity 6.3+
+      # does not show the "Missing Signature" warning when the package is installed.
+      # Needs a service account with the "Package Manager Package Signer" role.
+      - name: Sign package
+        id: sign
+        run: |
+          OUT_DIR="$RUNNER_TEMP/upm-signed"
+          upm pack . --organization-id "$UNITY_ORG_ID" --destination "$OUT_DIR"
+          TGZ=$(ls "$OUT_DIR"/*.tgz)
+          tar -tzf "$TGZ" | grep -i attestation || echo "::warning::No attestation file found in $TGZ"
+          echo "tgz=$TGZ" >> "$GITHUB_OUTPUT"
+        env:
+          UNITY_ORG_ID: ${{ secrets.UNITY_ORG_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+
+      # Step 6: Publish the signed tarball as-is to Verdaccio using the secure token.
+      # Do not repack it: any change to the tarball invalidates the signature.
       - name: Publish to Verdaccio
-        run: npm publish
+        id: publish
+        run: npm publish "${{ steps.sign.outputs.tgz }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.VERDACCIO_TOKEN }}
 
-      # Step 5: Send a Discord notification based on job result
+      # Step 7: Send a Discord notification based on job result
 
       # 1. Notify on SUCCESS
       - name: Discord Notification (Success)
@@ -84,7 +110,7 @@ jobs:
           title: "❌ Failure: ${{ steps.pkg-info.outputs.display_name || github.event.repository.name }} ${{ github.ref_name }}"
           description: |
             Build **#${{ github.run_number }}** failed for package `${{ steps.pkg-info.outputs.name || github.event.repository.name }}` at tag `${{ github.ref_name }}`.
-            **Reason:** Publish step failed.
+            **Reason:** ${{ steps.install-upm.outcome == 'failure' && 'Install UPM CLI step failed.' || steps.sign.outcome == 'failure' && 'Sign step failed (check UNITY_ORG_ID / UPM service account secrets).' || steps.publish.outcome == 'failure' && 'Publish step failed (check VERDACCIO_TOKEN or whether this version already exists).' || 'A setup step failed, see the build log.' }}
             **Build Log:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       # 3. Notify on CANCELLED
