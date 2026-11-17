@@ -97,7 +97,7 @@ namespace ThanhDV.BugCatcher
         {
             if (BugCatcherAssets.Instance == null)
             {
-                Debug.LogError("[BugCatcher] BugCatcherAssets is not loaded (it is added to Preloaded Assets at build time). Bug Catcher is off.");
+                Debug.LogError("[BugCatcher] Bug Catcher's assets are not loaded (they are added to Preloaded Assets at build time). Bug Catcher is off.");
                 return;
             }
 

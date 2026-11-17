@@ -15,7 +15,7 @@ namespace ThanhDV.BugCatcher.Editor
 {
     /// <summary>
     /// Keeps every [ConsoleMethod] method in builds with managed code stripping: nothing calls them directly, so the
-    /// linker would remove them. Only for builds with BUGCATCHER_ENABLED.
+    /// linker would remove them. Only for builds that contain Bug Catcher.
     /// </summary>
     /// <remarks>Finds the attribute by name, so this assembly needs no reference to the runtime.</remarks>
     internal sealed class BugCatcherLinker : IUnityLinkerProcessor
@@ -27,8 +27,13 @@ namespace ThanhDV.BugCatcher.Editor
 
         public string GenerateAdditionalLinkXmlFile(BuildReport report, UnityLinkerBuildPipelineData data)
         {
+            if (!BugCatcherBuild.ContainsBugCatcher(report)) return null;
             Type attribute = Type.GetType(AttributeType);
-            if (attribute == null || !BugCatcherBuild.IsEnabled(report)) return null;
+            if (attribute == null)
+            {
+                UnityEngine.Debug.LogWarning("[BugCatcher] BUGCATCHER_ENABLED is set for this build but not in the Editor, so the Editor cannot list the console commands to keep. Managed code stripping may remove them.");
+                return null;
+            }
 
             // Editor-only assemblies are not in the build; the linker must only see player assemblies.
             var playerAssemblies = new HashSet<string>(CompilationPipeline.GetAssemblies(AssembliesType.PlayerWithoutTestAssemblies).Select(a => a.name));
